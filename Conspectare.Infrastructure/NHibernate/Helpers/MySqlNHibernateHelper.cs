@@ -14,13 +14,14 @@ public class MySqlNHibernateHelper : INHibernateHelper
     private ISessionFactory _sessionFactory;
     private Assembly _mappingAssembly;
 
-    public INHibernateHelper Configure<TMapping>(string connectionString)
+    public INHibernateHelper Configure<TMapping>(string connectionString,
+        bool showSql = false, bool formatSql = false)
     {
         if (_configuration != null)
             return this;
 
         _mappingAssembly = typeof(TMapping).Assembly;
-        _configuration = CreateConfiguration(connectionString);
+        _configuration = CreateConfiguration(connectionString, showSql, formatSql);
         return this;
     }
 
@@ -34,7 +35,7 @@ public class MySqlNHibernateHelper : INHibernateHelper
         return SessionFactory.OpenStatelessSession();
     }
 
-    private ISessionFactory SessionFactory
+    public ISessionFactory SessionFactory
     {
         get
         {
@@ -42,15 +43,19 @@ public class MySqlNHibernateHelper : INHibernateHelper
                 return _sessionFactory;
 
             lock (_syncLock)
-                _sessionFactory = Fluently.Configure(_configuration)
-                    .Mappings(m => m.FluentMappings.AddFromAssembly(_mappingAssembly))
-                    .BuildSessionFactory();
+            {
+                if (_sessionFactory == null)
+                    _sessionFactory = Fluently.Configure(_configuration)
+                        .Mappings(m => m.FluentMappings.AddFromAssembly(_mappingAssembly))
+                        .BuildSessionFactory();
+            }
 
             return _sessionFactory;
         }
     }
 
-    private Configuration CreateConfiguration(string connectionString)
+    private Configuration CreateConfiguration(string connectionString,
+        bool showSql, bool formatSql)
     {
         var configuration = new Configuration();
 
@@ -61,8 +66,8 @@ public class MySqlNHibernateHelper : INHibernateHelper
             db.Dialect<MySQL5Dialect>();
             db.ConnectionString = connectionString;
             db.OrderInserts = true;
-            db.LogSqlInConsole = false;
-            db.LogFormattedSql = true;
+            db.LogSqlInConsole = showSql;
+            db.LogFormattedSql = formatSql;
         });
 
         return configuration;

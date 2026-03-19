@@ -7,10 +7,13 @@ public class NHibernateConspectare
 {
     private static INHibernateHelper _internalHelper;
 
-    public static void Configure<TMapping>(string connectionString)
+    public static void Configure<TMapping>(string connectionString,
+        bool showSql = false, bool formatSql = false)
     {
-        _internalHelper = new MySqlNHibernateHelper().Configure<TMapping>(connectionString);
+        _internalHelper = new MySqlNHibernateHelper().Configure<TMapping>(connectionString, showSql, formatSql);
     }
+
+    public static ISessionFactory SessionFactory => _internalHelper.SessionFactory;
 
     public static ISession OpenSession() => _internalHelper.OpenSession();
 
