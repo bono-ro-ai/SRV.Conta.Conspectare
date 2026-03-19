@@ -42,6 +42,7 @@ internal static class DependencyInjection
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
 
         services.AddSingleton<DocumentStatusWorkflow>();
+        services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
         services.AddScoped<IDocumentService, DocumentService>();
     }
 }
