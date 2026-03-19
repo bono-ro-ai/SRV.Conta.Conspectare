@@ -4,6 +4,7 @@ COPY ["Conspectare.Api/Conspectare.Api.csproj", "Conspectare.Api/"]
 COPY ["Conspectare.Services/Conspectare.Services.csproj", "Conspectare.Services/"]
 COPY ["Conspectare.Infrastructure/Conspectare.Infrastructure.csproj", "Conspectare.Infrastructure/"]
 COPY ["Conspectare.Domain/Conspectare.Domain.csproj", "Conspectare.Domain/"]
+COPY ["Conspectare.Infrastructure.Llm/Conspectare.Infrastructure.Llm.csproj", "Conspectare.Infrastructure.Llm/"]
 COPY ["Conspectare.Workers/Conspectare.Workers.csproj", "Conspectare.Workers/"]
 RUN dotnet restore "Conspectare.Api/Conspectare.Api.csproj"
 ARG CACHE_BUST=1
