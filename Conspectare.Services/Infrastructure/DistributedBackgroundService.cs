@@ -10,7 +10,7 @@ namespace Conspectare.Services.Infrastructure;
 
 public abstract class DistributedBackgroundService : BackgroundService
 {
-    private static readonly TimeSpan MaxAdaptiveInterval = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan MaxAdaptiveInterval = TimeSpan.FromSeconds(10);
 
     private TimeSpan EffectiveMaxInterval => TimeSpan.FromMilliseconds(
         Math.Max(MaxAdaptiveInterval.TotalMilliseconds, Interval.TotalMilliseconds));
