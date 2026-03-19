@@ -59,6 +59,7 @@ internal static class DependencyInjection
                 break;
         }
 
+        services.AddSingleton<IPipelineSignal, PipelineSignal>();
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
         services.AddScoped<IDocumentProcessor, ImageDocumentProcessor>();

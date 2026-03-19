@@ -17,6 +17,7 @@ public class DocumentService : IDocumentService
     private readonly IStorageService _storageService;
     private readonly ITenantContext _tenantContext;
     private readonly DocumentStatusWorkflow _workflow;
+    private readonly IPipelineSignal _pipelineSignal;
     private readonly ILogger<DocumentService> _logger;
 
     public DocumentService(
@@ -24,12 +25,14 @@ public class DocumentService : IDocumentService
         IStorageService storageService,
         ITenantContext tenantContext,
         DocumentStatusWorkflow workflow,
+        IPipelineSignal pipelineSignal,
         ILogger<DocumentService> logger)
     {
         _sessionFactory = sessionFactory;
         _storageService = storageService;
         _tenantContext = tenantContext;
         _workflow = workflow;
+        _pipelineSignal = pipelineSignal;
         _logger = logger;
     }
 
@@ -154,6 +157,8 @@ public class DocumentService : IDocumentService
 
         await transaction.CommitAsync(ct);
 
+        _pipelineSignal.Signal("triage");
+
         _logger.LogInformation("Ingested document {DocumentId} for tenant {TenantId}, file '{FileName}'",
             document.Id, tenantId, fileName);
 
@@ -234,6 +239,8 @@ public class DocumentService : IDocumentService
             .Execute();
 
         await transaction.CommitAsync(ct);
+
+        _pipelineSignal.Signal("triage");
 
         _logger.LogInformation("Retried document {DocumentId} for tenant {TenantId}, retry count: {RetryCount}",
             document.Id, tenantId, document.RetryCount);
