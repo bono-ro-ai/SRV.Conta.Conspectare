@@ -6,6 +6,7 @@ using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services;
 using Conspectare.Services.Interfaces;
+using Conspectare.Services.Processors;
 using Conspectare.Services.Workers;
 using FluentMigrator.Runner;
 
@@ -43,6 +44,7 @@ internal static class DependencyInjection
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
 
         services.AddSingleton<DocumentStatusWorkflow>();
+        services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
         services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
         services.AddScoped<IDocumentService, DocumentService>();
 
