@@ -9,3 +9,4 @@ localstack/
 *.md
 .github/
 .jira-project
+dashboard/

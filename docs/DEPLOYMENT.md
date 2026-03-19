@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Last updated: 2026-03-19
+Last updated: 2026-03-20
 
 ## Platform
 
@@ -41,6 +41,32 @@ The S3 bucket must be created manually in AWS:
 - Enable default SSE-KMS encryption.
 - Block all public access.
 - The bucket name must match the `Aws__BucketName` environment variable.
+
+## Dashboard Service
+
+The dashboard frontend is deployed as a separate Railway service alongside the API.
+
+### Railway Setup
+
+1. **Add a new service from GHCR** in the same Railway project — point it at `ghcr.io/<org>/srv.conta.conspectare-dashboard`.
+2. **Set the root directory** to `dashboard/` (Railway will find `dashboard/railway.toml` there).
+3. The dashboard serves static files via nginx on port 8080.
+
+### Environment Variables
+
+| Variable | Description |
+|---|---|
+| `VITE_API_BASE_URL` | URL of the Conspectare API (build-time, baked into JS bundle) |
+
+### Health Check
+
+The dashboard exposes `GET /health` (unauthenticated, returns plain text `ok`). Railway is configured to probe this endpoint with a 30-second timeout via `dashboard/railway.toml`.
+
+### CI/CD
+
+The `CI Dashboard` workflow (`.github/workflows/ci-dashboard.yml`) runs on changes to `dashboard/**`:
+- **On PR**: typecheck + build + Docker build
+- **On main push**: typecheck + build + Docker build + push to GHCR
 
 ## Monitoring
 
