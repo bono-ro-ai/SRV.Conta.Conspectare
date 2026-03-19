@@ -23,6 +23,8 @@ services:
     environment:
       SERVICES: s3
       DEFAULT_REGION: ${AWS_REGION:-eu-central-1}
+    volumes:
+      - ./localstack:/etc/localstack/init/ready.d
 
   api:
     build:
