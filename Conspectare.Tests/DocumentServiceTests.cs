@@ -150,7 +150,7 @@ public class DocumentServiceTests
         var result = await service.IngestAsync(stream, fileName, contentType, "ext-001", "client-ref", "{}", CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(201, result.StatusCode);
+        Assert.Equal(202, result.StatusCode);
         Assert.NotNull(result.Data);
         Assert.Equal(DocumentStatus.PendingTriage, result.Data.Status);
         Assert.Equal(fileName, result.Data.FileName);
@@ -366,7 +366,7 @@ public class DocumentServiceTests
         var result = await service.RetryAsync(doc.Id, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.StatusCode);
+        Assert.Equal(409, result.StatusCode);
     }
 
     [Fact]

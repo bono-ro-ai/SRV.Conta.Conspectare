@@ -9,6 +9,7 @@ public static class Startup
 {
     public static void ConfigureServices(IServiceCollection services, IConfiguration configuration)
     {
+        services.AddExceptionHandler<Middleware.GlobalExceptionHandler>();
         services.AddProblemDetails();
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
@@ -31,6 +32,7 @@ public static class Startup
         var runner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
         runner.MigrateUp();
 
+        app.UseExceptionHandler();
         app.UseForwardedHeaders();
         app.UseRouting();
 
