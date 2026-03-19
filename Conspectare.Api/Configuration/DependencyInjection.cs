@@ -40,5 +40,8 @@ internal static class DependencyInjection
         services.Configure<AwsSettings>(config.GetSection("Aws"));
         services.AddSingleton<IStorageService, S3StorageService>();
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
+
+        services.AddSingleton<DocumentStatusWorkflow>();
+        services.AddScoped<IDocumentService, DocumentService>();
     }
 }

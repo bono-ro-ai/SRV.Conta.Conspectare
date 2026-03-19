@@ -15,6 +15,7 @@ public static class TestSessionFactory
     private static readonly Lazy<(ISessionFactory Factory, Configuration Cfg)> _lazy = new(Build);
 
     public static ISessionFactory Instance => _lazy.Value.Factory;
+    public static Configuration Configuration => _lazy.Value.Cfg;
 
     public static ISession OpenSession()
     {
