@@ -11,4 +11,7 @@
     <PackageReference Include="MySqlConnector" Version="2.4.0" />
     <PackageReference Include="AWSSDK.S3" Version="3.7.405.2" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Conspectare.Domain\Conspectare.Domain.csproj" />
+  </ItemGroup>
 </Project>
