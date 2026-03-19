@@ -98,6 +98,7 @@ export function uploadDocumentWithProgress(
     const xhr = new XMLHttpRequest();
     xhr.open("POST", `${API_BASE}/api/v1/documents`);
     xhr.setRequestHeader("Authorization", `Bearer ${apiKey}`);
+    xhr.setRequestHeader("X-Request-Id", crypto.randomUUID());
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
@@ -112,8 +113,16 @@ export function uploadDocumentWithProgress(
         reject(new Error("Authentication expired"));
         return;
       }
+      if (xhr.status === 403) {
+        reject(new Error("Access denied"));
+        return;
+      }
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText) as UploadAcceptedResponse);
+        try {
+          resolve(JSON.parse(xhr.responseText) as UploadAcceptedResponse);
+        } catch {
+          reject(new Error("Invalid response from server"));
+        }
         return;
       }
       try {

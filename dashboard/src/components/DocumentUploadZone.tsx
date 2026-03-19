@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import type { UploadAcceptedResponse } from "../types/api";
 import { uploadDocumentWithProgress } from "../services/api/documents";
 
@@ -52,6 +53,13 @@ export function DocumentUploadZone({ onUploadComplete }: DocumentUploadZoneProps
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [clientReference, setClientReference] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (uploadState !== "success") return;
+    const timer = setTimeout(() => navigate("/"), 2000);
+    return () => clearTimeout(timer);
+  }, [uploadState, navigate]);
 
   const handleSelectFile = useCallback((selectedFile: File) => {
     const validationError = validateFile(selectedFile);
