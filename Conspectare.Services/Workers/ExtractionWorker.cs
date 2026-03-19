@@ -215,6 +215,8 @@ public class ExtractionWorker : DistributedBackgroundService
             TenantId = doc.TenantId,
             AttemptNumber = doc.RetryCount + 1,
             Phase = "extraction",
+            ModelId = "unknown",
+            PromptVersion = "unknown",
             Status = "failed",
             ErrorMessage = doc.ErrorMessage,
             CreatedAt = utcNow,
