@@ -109,7 +109,7 @@ public class EFacturaXmlProcessor : IDocumentProcessor
             ?.Element(Cbc + "PaymentMeansCode")?.Value;
         var paymentMethod = paymentMeansCode != null ? MapPaymentCode(paymentMeansCode) : null;
 
-        var documentType = isCreditNote ? "credit_note" : DocumentType.Invoice;
+        var documentType = isCreditNote ? DocumentType.CreditNote : DocumentType.Invoice;
 
         var canonical = new CanonicalInvoice(
             SchemaVersion: SchemaVersion,

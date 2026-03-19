@@ -417,4 +417,27 @@ public class EFacturaXmlProcessorTests
         Assert.True(root.TryGetProperty("line_items", out _));
         Assert.True(root.TryGetProperty("payment_method", out _));
     }
+
+    [Fact]
+    public async Task ExtractAsync_CreditNote_ExtractsCorrectly()
+    {
+        using var stream = ToStream(ValidCreditNoteXml);
+        var result = await _processor.ExtractAsync(CreateTestDocument(), stream, CancellationToken.None);
+
+        var doc = JsonDocument.Parse(result.OutputJson);
+        var root = doc.RootElement;
+
+        Assert.Equal("credit_note", root.GetProperty("document_type").GetString());
+        Assert.Equal("CN-2026-001", root.GetProperty("invoice_number").GetString());
+        Assert.Equal("RON", root.GetProperty("currency").GetString());
+
+        var lineItems = root.GetProperty("line_items");
+        Assert.Equal(1, lineItems.GetArrayLength());
+        Assert.Equal("Retur marfa", lineItems[0].GetProperty("description").GetString());
+        Assert.Equal(1m, lineItems[0].GetProperty("quantity").GetDecimal());
+
+        var totals = root.GetProperty("totals");
+        Assert.Equal(50.00m, totals.GetProperty("subtotal").GetDecimal());
+        Assert.Equal(59.50m, totals.GetProperty("total").GetDecimal());
+    }
 }
