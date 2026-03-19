@@ -16,5 +16,4 @@ COPY --from=build /app/publish .
 RUN adduser -D appuser && chown -R appuser /app
 USER appuser
 EXPOSE 5100
-ENV ASPNETCORE_URLS=http://+:5100
 ENTRYPOINT ["dotnet", "Conspectare.Api.dll"]
