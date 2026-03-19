@@ -98,7 +98,7 @@ public class TriageWorker : DistributedBackgroundService
         {
             DocumentId = doc.Id,
             TenantId = doc.TenantId,
-            AttemptNumber = doc.ExtractionAttempts.Count + 1,
+            AttemptNumber = 1,
             Phase = "triage",
             ModelId = triageResult.ModelId,
             PromptVersion = triageResult.PromptVersion,

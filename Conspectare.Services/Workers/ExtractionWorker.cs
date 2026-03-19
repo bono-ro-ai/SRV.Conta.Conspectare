@@ -135,7 +135,7 @@ public class ExtractionWorker : DistributedBackgroundService
         var attempt = new ExtractionAttempt
         {
             TenantId = doc.TenantId,
-            AttemptNumber = doc.ExtractionAttempts.Count + 1,
+            AttemptNumber = doc.RetryCount + 1,
             Phase = "extraction",
             ModelId = result.ModelId,
             PromptVersion = result.PromptVersion,
@@ -213,7 +213,7 @@ public class ExtractionWorker : DistributedBackgroundService
         {
             DocumentId = doc.Id,
             TenantId = doc.TenantId,
-            AttemptNumber = doc.ExtractionAttempts.Count + 1,
+            AttemptNumber = doc.RetryCount + 1,
             Phase = "extraction",
             Status = "failed",
             ErrorMessage = doc.ErrorMessage,
