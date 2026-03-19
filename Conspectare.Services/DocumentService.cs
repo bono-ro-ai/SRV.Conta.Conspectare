@@ -197,7 +197,7 @@ public class DocumentService : IDocumentService
         return Task.FromResult(OperationResult<PagedResult<Document>>.Success(result));
     }
 
-    public Task<OperationResult<Document>> RetryAsync(long id, CancellationToken ct = default)
+    public async Task<OperationResult<Document>> RetryAsync(long id, CancellationToken ct = default)
     {
         var tenantId = _tenantContext.TenantId;
 
@@ -207,15 +207,15 @@ public class DocumentService : IDocumentService
             .Execute();
 
         if (document == null)
-            return Task.FromResult(OperationResult<Document>.NotFound($"Document with id {id} not found."));
+            return OperationResult<Document>.NotFound($"Document with id {id} not found.");
 
         if (!_workflow.CanTransition(document.Status, DocumentStatus.PendingTriage))
-            return Task.FromResult(OperationResult<Document>.BadRequest(
-                $"Cannot retry document in status '{document.Status}'."));
+            return OperationResult<Document>.BadRequest(
+                $"Cannot retry document in status '{document.Status}'.");
 
         if (document.RetryCount >= document.MaxRetries)
-            return Task.FromResult(OperationResult<Document>.BadRequest(
-                $"Maximum retry count ({document.MaxRetries}) exceeded."));
+            return OperationResult<Document>.BadRequest(
+                $"Maximum retry count ({document.MaxRetries}) exceeded.");
 
         var retryEvent = new DocumentEvent
         {
@@ -233,11 +233,11 @@ public class DocumentService : IDocumentService
             .UseExternalSession(session)
             .Execute();
 
-        transaction.Commit();
+        await transaction.CommitAsync(ct);
 
         _logger.LogInformation("Retried document {DocumentId} for tenant {TenantId}, retry count: {RetryCount}",
             document.Id, tenantId, document.RetryCount);
 
-        return Task.FromResult(OperationResult<Document>.Success(document));
+        return OperationResult<Document>.Success(document);
     }
 }

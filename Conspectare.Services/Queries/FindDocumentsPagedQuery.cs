@@ -9,15 +9,21 @@ public class FindDocumentsPagedQuery(long tenantId, string status, int page, int
 {
     protected override PagedResult<Document> OnExecute()
     {
-        var query = Session.QueryOver<Document>()
+        var countQuery = Session.QueryOver<Document>()
             .Where(d => d.TenantId == tenantId);
 
         if (!string.IsNullOrWhiteSpace(status))
-            query = query.And(d => d.Status == status);
+            countQuery = countQuery.And(d => d.Status == status);
 
-        var totalCount = query.RowCount();
+        var totalCount = countQuery.RowCount();
 
-        var items = query
+        var listQuery = Session.QueryOver<Document>()
+            .Where(d => d.TenantId == tenantId);
+
+        if (!string.IsNullOrWhiteSpace(status))
+            listQuery = listQuery.And(d => d.Status == status);
+
+        var items = listQuery
             .OrderBy(d => d.CreatedAt).Desc
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
