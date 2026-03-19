@@ -92,6 +92,7 @@ internal static class DependencyInjection
         services.AddScoped<VatValidationService>();
 
         services.AddSingleton<IPromptService, PromptService>();
+        services.AddSingleton<IPipelineSignal, PipelineSignal>();
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
         services.AddScoped<IDocumentProcessor, ImageDocumentProcessor>();

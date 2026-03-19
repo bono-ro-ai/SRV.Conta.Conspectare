@@ -14,14 +14,18 @@ public class TriageWorker : DistributedBackgroundService
 {
     private const int BatchSize = 5;
     private const decimal MinConfidenceThreshold = 0.7m;
+    private readonly IPipelineSignal _pipelineSignal;
     protected override string JobName => "triage_worker";
     protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
+    protected override string SignalStage => "triage";
     public TriageWorker(
         IDistributedLock distributedLock,
         IServiceScopeFactory scopeFactory,
-        ILogger<TriageWorker> logger)
-        : base(distributedLock, scopeFactory, logger)
+        ILogger<TriageWorker> logger,
+        IPipelineSignal signal)
+        : base(distributedLock, scopeFactory, logger, signal)
     {
+        _pipelineSignal = signal;
     }
     protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
     {
@@ -60,7 +64,7 @@ public class TriageWorker : DistributedBackgroundService
         }
         return processedCount;
     }
-    private static async Task ProcessDocumentAsync(
+    private async Task ProcessDocumentAsync(
         Document doc,
         IProcessorRegistry processorRegistry,
         IStorageService storageService,
@@ -134,6 +138,8 @@ public class TriageWorker : DistributedBackgroundService
                     "TriageWorker: failed to enqueue webhook for document {DocumentId}", doc.Id);
             }
         }
+        if (nextStatus == DocumentStatus.PendingExtraction)
+            _pipelineSignal.Signal("extraction");
         logger.LogInformation(
             "TriageWorker: document {DocumentId} triaged -> {NextStatus} " +
             "(type={DocumentType}, confidence={Confidence:F2})",
