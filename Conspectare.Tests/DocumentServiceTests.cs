@@ -130,6 +130,30 @@ public class DocumentServiceTests
         return tenant;
     }
 
+    private Document CreateDocument(
+        ApiClient tenant,
+        DateTime createdAt,
+        string status = DocumentStatus.PendingTriage,
+        string externalRef = null)
+    {
+        return new Document
+        {
+            TenantId = tenant.Id,
+            Tenant = tenant,
+            FileName = $"doc-{Guid.NewGuid():N}.xml",
+            ContentType = "text/xml",
+            FileSizeBytes = 100,
+            InputFormat = InputFormat.XmlEfactura,
+            Status = status,
+            ExternalRef = externalRef,
+            RetryCount = 0,
+            MaxRetries = 3,
+            RawFileS3Key = $"test/raw/{Guid.NewGuid()}.xml",
+            CreatedAt = createdAt,
+            UpdatedAt = createdAt
+        };
+    }
+
     private (Stream stream, string fileName, string contentType) CreateTestFile(string content = "test file content")
     {
         var bytes = System.Text.Encoding.UTF8.GetBytes(content);
@@ -285,6 +309,132 @@ public class DocumentServiceTests
         var noResult = await service.ListAsync(DocumentStatus.Completed, null, null, null, 1, 50, CancellationToken.None);
         Assert.True(noResult.IsSuccess);
         Assert.Equal(0, noResult.Data.TotalCount);
+    }
+
+    [Fact]
+    public async Task ListAsync_SearchByExternalRef_ReturnsMatchingDocuments()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var utcNow = DateTime.UtcNow;
+        var doc1 = CreateDocument(tenant, utcNow, externalRef: "INV-2026-001");
+        var doc2 = CreateDocument(tenant, utcNow, externalRef: "INV-2026-002");
+        var doc3 = CreateDocument(tenant, utcNow, externalRef: "REC-2026-001");
+
+        using (var tx = setupSession.BeginTransaction())
+        {
+            setupSession.Save(doc1);
+            setupSession.Save(doc2);
+            setupSession.Save(doc3);
+            tx.Commit();
+        }
+
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ListAsync(null, "INV-2026", null, null, 1, 50, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Data.TotalCount);
+        Assert.All(result.Data.Items, d => Assert.Contains("INV-2026", d.ExternalRef));
+    }
+
+    [Fact]
+    public async Task ListAsync_DateRangeFilter_ReturnsDocumentsInRange()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var jan = new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc);
+        var feb = new DateTime(2026, 2, 15, 12, 0, 0, DateTimeKind.Utc);
+        var mar = new DateTime(2026, 3, 15, 12, 0, 0, DateTimeKind.Utc);
+
+        var doc1 = CreateDocument(tenant, jan);
+        var doc2 = CreateDocument(tenant, feb);
+        var doc3 = CreateDocument(tenant, mar);
+
+        using (var tx = setupSession.BeginTransaction())
+        {
+            setupSession.Save(doc1);
+            setupSession.Save(doc2);
+            setupSession.Save(doc3);
+            tx.Commit();
+        }
+
+        var service = CreateService(sharedFactory);
+
+        var dateFrom = new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
+        var dateTo = new DateTime(2026, 2, 28, 23, 59, 59, DateTimeKind.Utc);
+        var result = await service.ListAsync(null, null, dateFrom, dateTo, 1, 50, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Data.TotalCount);
+        Assert.Equal(doc2.Id, result.Data.Items[0].Id);
+    }
+
+    [Fact]
+    public async Task ListAsync_MultiStatusFilter_ReturnsMatchingStatuses()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var utcNow = DateTime.UtcNow;
+        var doc1 = CreateDocument(tenant, utcNow, status: DocumentStatus.PendingTriage);
+        var doc2 = CreateDocument(tenant, utcNow, status: DocumentStatus.Completed);
+        var doc3 = CreateDocument(tenant, utcNow, status: DocumentStatus.ExtractionFailed);
+
+        using (var tx = setupSession.BeginTransaction())
+        {
+            setupSession.Save(doc1);
+            setupSession.Save(doc2);
+            setupSession.Save(doc3);
+            tx.Commit();
+        }
+
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ListAsync("pending_triage,extraction_failed", null, null, null, 1, 50, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Data.TotalCount);
+        Assert.All(result.Data.Items, d =>
+            Assert.True(d.Status == DocumentStatus.PendingTriage || d.Status == DocumentStatus.ExtractionFailed));
+    }
+
+    [Fact]
+    public async Task ListAsync_CombinedStatusAndSearch_ReturnsIntersection()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var utcNow = DateTime.UtcNow;
+        var doc1 = CreateDocument(tenant, utcNow, status: DocumentStatus.PendingTriage, externalRef: "INV-100");
+        var doc2 = CreateDocument(tenant, utcNow, status: DocumentStatus.Completed, externalRef: "INV-200");
+        var doc3 = CreateDocument(tenant, utcNow, status: DocumentStatus.PendingTriage, externalRef: "REC-300");
+
+        using (var tx = setupSession.BeginTransaction())
+        {
+            setupSession.Save(doc1);
+            setupSession.Save(doc2);
+            setupSession.Save(doc3);
+            tx.Commit();
+        }
+
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ListAsync(DocumentStatus.PendingTriage, "INV", null, null, 1, 50, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, result.Data.TotalCount);
+        Assert.Equal("INV-100", result.Data.Items[0].ExternalRef);
     }
 
     [Fact]
