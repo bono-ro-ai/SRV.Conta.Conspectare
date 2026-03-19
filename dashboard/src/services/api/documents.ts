@@ -1,9 +1,12 @@
 import type {
   DocumentListResponse,
   DocumentResponse,
+  ProblemDetails,
   UploadAcceptedResponse,
 } from "../../types/api";
 import { authFetch } from "./authFetch";
+import { clearStoredApiKey, getStoredApiKey } from "./authFetch";
+import { API_BASE } from "./config";
 
 export interface ListDocumentsParams {
   status?: string;
@@ -71,4 +74,69 @@ export async function retryDocument(
     method: "POST",
   });
   return (await response.json()) as DocumentResponse;
+}
+
+export function uploadDocumentWithProgress(
+  file: File,
+  clientReference: string | undefined,
+  onProgress: (percent: number) => void,
+): Promise<UploadAcceptedResponse> {
+  return new Promise((resolve, reject) => {
+    const apiKey = getStoredApiKey();
+    if (!apiKey) {
+      window.location.href = "/login";
+      reject(new Error("Not authenticated"));
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    if (clientReference) {
+      formData.append("clientReference", clientReference);
+    }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_BASE}/api/v1/documents`);
+    xhr.setRequestHeader("Authorization", `Bearer ${apiKey}`);
+    xhr.setRequestHeader("X-Request-Id", crypto.randomUUID());
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        clearStoredApiKey();
+        window.location.href = "/login";
+        reject(new Error("Authentication expired"));
+        return;
+      }
+      if (xhr.status === 403) {
+        reject(new Error("Access denied"));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as UploadAcceptedResponse);
+        } catch {
+          reject(new Error("Invalid response from server"));
+        }
+        return;
+      }
+      try {
+        const body = JSON.parse(xhr.responseText) as ProblemDetails;
+        reject(new Error(body.detail ?? body.title ?? `Upload failed with status ${xhr.status}`));
+      } catch {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Network error during upload."));
+    };
+
+    xhr.send(formData);
+  });
 }

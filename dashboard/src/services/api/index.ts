@@ -10,6 +10,7 @@ export {
   getDocuments,
   getDocumentById,
   uploadDocument,
+  uploadDocumentWithProgress,
   retryDocument,
 } from "./documents";
 export type { ListDocumentsParams } from "./documents";

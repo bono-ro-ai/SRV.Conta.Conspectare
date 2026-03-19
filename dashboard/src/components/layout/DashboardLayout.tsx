@@ -4,6 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: "\u{1F4CA}" },
+  { to: "/upload", label: "Upload", icon: "\u{1F4E4}" },
 ] as const;
 
 export function DashboardLayout() {
