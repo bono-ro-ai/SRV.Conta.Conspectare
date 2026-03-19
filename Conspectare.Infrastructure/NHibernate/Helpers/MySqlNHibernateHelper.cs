@@ -12,13 +12,15 @@ public class MySqlNHibernateHelper : INHibernateHelper
     private readonly Lock _syncLock = new();
     private Configuration _configuration;
     private ISessionFactory _sessionFactory;
+    private Assembly _mappingAssembly;
 
     public INHibernateHelper Configure<TMapping>(string connectionString)
     {
         if (_configuration != null)
             return this;
 
-        _configuration = CreateConfiguration(typeof(TMapping).Assembly, connectionString);
+        _mappingAssembly = typeof(TMapping).Assembly;
+        _configuration = CreateConfiguration(connectionString);
         return this;
     }
 
@@ -41,15 +43,14 @@ public class MySqlNHibernateHelper : INHibernateHelper
 
             lock (_syncLock)
                 _sessionFactory = Fluently.Configure(_configuration)
-                    .Mappings(m => m.FluentMappings.AddFromAssembly(_configuration.ClassMappings
-                        .Select(c => c.MappedClass.Assembly).FirstOrDefault() ?? Assembly.GetExecutingAssembly()))
+                    .Mappings(m => m.FluentMappings.AddFromAssembly(_mappingAssembly))
                     .BuildSessionFactory();
 
             return _sessionFactory;
         }
     }
 
-    private Configuration CreateConfiguration(Assembly assembly, string connectionString)
+    private Configuration CreateConfiguration(string connectionString)
     {
         var configuration = new Configuration();
 

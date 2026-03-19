@@ -11,6 +11,5 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Conspectare.Services\Conspectare.Services.csproj" />
-    <ProjectReference Include="..\Conspectare.Infrastructure\Conspectare.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

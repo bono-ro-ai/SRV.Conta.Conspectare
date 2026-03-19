@@ -24,9 +24,17 @@ Document pipeline microservice for conta-facturare.
 - `SaveOrUpdateCommand.For(entity)` — generic single-entity save
 - One class per file, file name matches class name
 
+## Workers
+
+The `Conspectare.Workers` project contains background service implementations (e.g., TriageWorker, ExtractionWorker) that run as `IHostedService` registrations inside the API host process. In Phase 1 there is no separate container or docker-compose service for workers — they share the API process. A dedicated worker container may be introduced in a later phase if scaling demands it.
+
 ## Running Tests
 
 ```bash
+# Primary (no local .NET SDK required)
+docker run --rm -v "$(pwd):/src" -w /src mcr.microsoft.com/dotnet/sdk:9.0 dotnet test
+
+# If you have the .NET 9 SDK installed locally
 cd Conspectare.Tests && dotnet test
 ```
 
