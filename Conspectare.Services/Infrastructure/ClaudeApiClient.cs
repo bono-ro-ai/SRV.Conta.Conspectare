@@ -248,7 +248,7 @@ public class ClaudeApiClient : IClaudeApiClient
                     response.StatusCode);
             }
 
-            var delaySeconds = (int)Math.Pow(2, attempt);
+            var delaySeconds = attempt switch { 0 => 5, 1 => 15, _ => 30 };
 
             _logger.LogWarning(
                 "Claude API returned {StatusCode}, retrying in {Delay}s (attempt {Attempt}/{MaxRetries})",
