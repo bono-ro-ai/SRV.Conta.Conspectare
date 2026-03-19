@@ -55,8 +55,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set short SHA
-        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
+      - name: Set image name and short SHA
+        run: |
+          echo "IMAGE_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -75,8 +77,8 @@ jobs:
           file: Conspectare.Api/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:sha-${{ env.SHORT_SHA }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ env.IMAGE_NAME }}:sha-${{ env.SHORT_SHA }}
+            ghcr.io/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -84,5 +86,5 @@ jobs:
         run: |
           echo "### Images pushed to GHCR" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository }}:sha-${{ env.SHORT_SHA }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ github.repository }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.IMAGE_NAME }}:sha-${{ env.SHORT_SHA }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
