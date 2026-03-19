@@ -1,7 +1,10 @@
 using ISession = NHibernate.ISession;
+using Conspectare.Infrastructure.Settings;
+using Conspectare.Services.Infrastructure;
 using Conspectare.Infrastructure.Mappings;
 using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
+using Conspectare.Services.Interfaces;
 using FluentMigrator.Runner;
 
 namespace Conspectare.Api.Configuration;
@@ -30,5 +33,8 @@ internal static class DependencyInjection
                 .WithGlobalConnectionString(connectionString)
                 .ScanIn(typeof(Migration_001_Baseline).Assembly).For.Migrations())
             .AddLogging(lb => lb.AddFluentMigratorConsole());
+
+        services.Configure<AwsSettings>(config.GetSection("Aws"));
+        services.AddSingleton<IStorageService, S3StorageService>();
     }
 }
