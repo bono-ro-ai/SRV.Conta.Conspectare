@@ -177,6 +177,9 @@ public class DocumentService : IDocumentService
 
     public Task<OperationResult<PagedResult<Document>>> ListAsync(
         string status,
+        string search,
+        DateTime? dateFrom,
+        DateTime? dateTo,
         int page,
         int pageSize,
         CancellationToken ct = default)
@@ -189,8 +192,12 @@ public class DocumentService : IDocumentService
 
         var tenantId = _tenantContext.TenantId;
 
+        var statuses = string.IsNullOrWhiteSpace(status)
+            ? Array.Empty<string>()
+            : status.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
         using var session = _sessionFactory.OpenSession();
-        var result = new FindDocumentsPagedQuery(tenantId, status, page, pageSize)
+        var result = new FindDocumentsPagedQuery(tenantId, statuses, search, dateFrom, dateTo, page, pageSize)
             .UseExternalSession(session)
             .Execute();
 

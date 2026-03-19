@@ -253,7 +253,7 @@ public class DocumentServiceTests
 
         // List for tenant 1 only
         _tenantContext.TenantId = tenant1.Id;
-        var listResult = await service.ListAsync(null, 1, 50, CancellationToken.None);
+        var listResult = await service.ListAsync(null, null, null, null, 1, 50, CancellationToken.None);
 
         Assert.True(listResult.IsSuccess);
         Assert.Equal(1, listResult.Data.TotalCount);
@@ -277,12 +277,12 @@ public class DocumentServiceTests
         await service.IngestAsync(s2, f2, c2, null, null, null, CancellationToken.None);
 
         // Filter by PendingTriage should return 2
-        var result = await service.ListAsync(DocumentStatus.PendingTriage, 1, 50, CancellationToken.None);
+        var result = await service.ListAsync(DocumentStatus.PendingTriage, null, null, null, 1, 50, CancellationToken.None);
         Assert.True(result.IsSuccess);
         Assert.Equal(2, result.Data.TotalCount);
 
         // Filter by Completed should return 0
-        var noResult = await service.ListAsync(DocumentStatus.Completed, 1, 50, CancellationToken.None);
+        var noResult = await service.ListAsync(DocumentStatus.Completed, null, null, null, 1, 50, CancellationToken.None);
         Assert.True(noResult.IsSuccess);
         Assert.Equal(0, noResult.Data.TotalCount);
     }

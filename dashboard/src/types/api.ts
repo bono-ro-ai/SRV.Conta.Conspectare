@@ -16,6 +16,7 @@ export interface DocumentSummaryResponse {
   fileSizeBytes: number;
   inputFormat: string;
   status: string;
+  pipelineStatus: string;
   documentType: string;
   retryCount: number;
   clientReference: string;
