@@ -4,6 +4,7 @@ using Conspectare.Services.Infrastructure;
 using Conspectare.Infrastructure.Mappings;
 using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
+using Conspectare.Services;
 using Conspectare.Services.Interfaces;
 using FluentMigrator.Runner;
 
@@ -33,6 +34,8 @@ internal static class DependencyInjection
                 .WithGlobalConnectionString(connectionString)
                 .ScanIn(typeof(Migration_001_Baseline).Assembly).For.Migrations())
             .AddLogging(lb => lb.AddFluentMigratorConsole());
+
+        services.AddScoped<ITenantContext, TenantContext>();
 
         services.Configure<AwsSettings>(config.GetSection("Aws"));
         services.AddSingleton<IStorageService, S3StorageService>();

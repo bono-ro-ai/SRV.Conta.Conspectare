@@ -1,3 +1,4 @@
+using Conspectare.Api.Middleware;
 using FluentMigrator.Runner;
 using Microsoft.AspNetCore.HttpOverrides;
 using Scalar.AspNetCore;
@@ -38,6 +39,9 @@ public static class Startup
             app.MapOpenApi().AllowAnonymous();
             app.MapScalarApiReference().AllowAnonymous();
         }
+
+        app.UseMiddleware<ApiKeyAuthMiddleware>();
+        app.UseMiddleware<TenantMiddleware>();
 
         app.MapControllers();
     }
