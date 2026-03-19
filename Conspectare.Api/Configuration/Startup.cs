@@ -44,6 +44,7 @@ public static class Startup
 
         app.UseMiddleware<ApiKeyAuthMiddleware>();
         app.UseMiddleware<TenantMiddleware>();
+        app.UseMiddleware<RateLimitingMiddleware>();
 
         app.MapControllers();
     }
