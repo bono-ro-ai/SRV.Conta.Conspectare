@@ -47,5 +47,6 @@ internal static class DependencyInjection
         services.AddScoped<IDocumentService, DocumentService>();
 
         services.AddHostedService<TriageWorker>();
+        services.AddHostedService<ExtractionWorker>();
     }
 }
