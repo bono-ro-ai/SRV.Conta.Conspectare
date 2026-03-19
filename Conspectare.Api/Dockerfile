@@ -6,6 +6,7 @@ COPY ["Conspectare.Infrastructure/Conspectare.Infrastructure.csproj", "Conspecta
 COPY ["Conspectare.Domain/Conspectare.Domain.csproj", "Conspectare.Domain/"]
 COPY ["Conspectare.Workers/Conspectare.Workers.csproj", "Conspectare.Workers/"]
 RUN dotnet restore "Conspectare.Api/Conspectare.Api.csproj"
+ARG CACHE_BUST=1
 COPY . .
 RUN dotnet publish "Conspectare.Api/Conspectare.Api.csproj" -c Release -o /app/publish --no-restore
 
