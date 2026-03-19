@@ -43,6 +43,9 @@ internal static class DependencyInjection
         services.AddSingleton<IStorageService, S3StorageService>();
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
 
+        services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
+        services.AddHttpClient<IClaudeApiClient, Conspectare.Services.Infrastructure.ClaudeApiClient>();
+
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
         services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
