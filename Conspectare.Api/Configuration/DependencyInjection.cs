@@ -1,4 +1,5 @@
 using ISession = NHibernate.ISession;
+using Conspectare.Infrastructure.Llm.Claude;
 using Conspectare.Infrastructure.Settings;
 using Conspectare.Services.Infrastructure;
 using Conspectare.Infrastructure.Mappings;
@@ -7,7 +8,7 @@ using Conspectare.Services.Core.Database;
 using Conspectare.Services;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Processors;
-using Conspectare.Services.Workers;
+using Conspectare.Workers;
 using FluentMigrator.Runner;
 
 namespace Conspectare.Api.Configuration;
@@ -44,7 +45,7 @@ internal static class DependencyInjection
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
 
         services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
-        services.AddHttpClient<IClaudeApiClient, Conspectare.Services.Infrastructure.ClaudeApiClient>();
+        services.AddHttpClient<ILlmApiClient, ClaudeApiClient>();
 
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
