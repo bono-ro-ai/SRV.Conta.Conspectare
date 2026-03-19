@@ -27,8 +27,19 @@ public class DocumentsController : ControllerBase
         _logger = logger;
     }
 
+    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text/xml", "application/xml",
+        "application/pdf",
+        "image/jpeg", "image/png", "image/tiff", "image/heic", "image/webp",
+        "application/json",
+        "text/csv",
+        "application/octet-stream"
+    };
+
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(52_428_800)]
     public async Task<IActionResult> Upload(
         IFormFile file,
         [FromHeader(Name = "X-Request-Id")] string externalRef,
@@ -43,6 +54,15 @@ public class DocumentsController : ControllerBase
                 Title = "Bad Request",
                 Status = StatusCodes.Status400BadRequest,
                 Detail = "A non-empty file is required."
+            });
+
+        if (!AllowedContentTypes.Contains(file.ContentType))
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = $"Content type '{file.ContentType}' is not supported."
             });
 
         using var stream = file.OpenReadStream();
@@ -109,7 +129,8 @@ public class DocumentsController : ControllerBase
         var document = result.Data;
         var stream = await _storageService.DownloadAsync(document.RawFileS3Key, ct);
 
-        return File(stream, document.ContentType, document.FileName);
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(stream, "application/octet-stream", document.FileName);
     }
 
     [HttpPost("{id:long}/retry")]

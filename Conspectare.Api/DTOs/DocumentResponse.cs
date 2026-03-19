@@ -35,7 +35,7 @@ public record DocumentResponse(
             .AsReadOnly()
             ?? (IReadOnlyList<ReviewFlagResponse>)Array.Empty<ReviewFlagResponse>();
 
-        var canonicalJson = document.CanonicalOutput?.OutputJson;
+        var canonicalJson = externalStatus == "completed" ? document.CanonicalOutput?.OutputJson : null;
 
         return new DocumentResponse(
             document.Id,

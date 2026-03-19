@@ -37,7 +37,7 @@ public class DtoMappingTests
     [Fact]
     public void DocumentResponse_FromEntity_MapsAllFields()
     {
-        var document = CreateTestDocument();
+        var document = CreateTestDocument(DocumentStatus.Completed);
         document.CanonicalOutput = new CanonicalOutput
         {
             Id = 1,
@@ -55,7 +55,7 @@ public class DtoMappingTests
         Assert.Equal("text/xml", response.ContentType);
         Assert.Equal(1024, response.FileSizeBytes);
         Assert.Equal(InputFormat.XmlEfactura, response.InputFormat);
-        Assert.Equal("processing", response.Status);
+        Assert.Equal("completed", response.Status);
         Assert.Equal("invoice", response.DocumentType);
         Assert.Equal(0.95m, response.TriageConfidence);
         Assert.True(response.IsAccountingRelevant);
