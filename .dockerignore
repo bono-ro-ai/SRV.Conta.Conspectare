@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/.git
+**/.vs
+**/.vscode
+**/node_modules/
+docker-compose.yml
+localstack/
+*.md
+.github/
+.jira-project
