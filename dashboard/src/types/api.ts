@@ -25,6 +25,31 @@ export interface DocumentSummaryResponse {
   completedAt: string | null;
 }
 
+export interface DocumentEventResponse {
+  id: number;
+  eventType: string;
+  fromStatus: string;
+  toStatus: string;
+  details: string | null;
+  createdAt: string;
+}
+
+export interface ExtractionAttemptResponse {
+  id: number;
+  attemptNumber: number;
+  phase: string;
+  modelId: string;
+  promptVersion: string;
+  status: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  latencyMs: number | null;
+  confidence: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export interface DocumentResponse {
   id: number;
   externalRef: string;
@@ -43,6 +68,9 @@ export interface DocumentResponse {
   metadata: string | null;
   canonicalOutputJson: string | null;
   reviewFlags: ReviewFlagResponse[];
+  events: DocumentEventResponse[];
+  extractionAttempts: ExtractionAttemptResponse[];
+  isTerminal: boolean;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
