@@ -11,14 +11,14 @@ public class SaveTriageResultCommand(
 {
     protected override void OnExecute()
     {
-        Session.Merge(document);
+        var merged = (Document)Session.Merge(document);
 
-        attempt.Document = document;
-        attempt.DocumentId = document.Id;
+        attempt.Document = merged;
+        attempt.DocumentId = merged.Id;
         Session.Save(attempt);
 
-        statusEvent.Document = document;
-        statusEvent.DocumentId = document.Id;
+        statusEvent.Document = merged;
+        statusEvent.DocumentId = merged.Id;
         Session.Save(statusEvent);
     }
 }

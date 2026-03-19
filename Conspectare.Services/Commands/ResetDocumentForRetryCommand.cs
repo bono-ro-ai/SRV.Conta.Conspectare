@@ -13,10 +13,10 @@ public class ResetDocumentForRetryCommand(Document document, DocumentEvent retry
         document.RetryCount++;
         document.ErrorMessage = null;
         document.UpdatedAt = DateTime.UtcNow;
-        Session.Merge(document);
+        var merged = (Document)Session.Merge(document);
 
-        retryEvent.Document = document;
-        retryEvent.DocumentId = document.Id;
+        retryEvent.Document = merged;
+        retryEvent.DocumentId = merged.Id;
         Session.Save(retryEvent);
     }
 }

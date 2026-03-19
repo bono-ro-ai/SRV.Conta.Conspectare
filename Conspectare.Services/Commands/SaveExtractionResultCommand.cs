@@ -14,37 +14,37 @@ public class SaveExtractionResultCommand(
 {
     protected override void OnExecute()
     {
-        Session.Merge(document);
+        var merged = (Document)Session.Merge(document);
 
-        canonicalOutput.Document = document;
-        canonicalOutput.DocumentId = document.Id;
+        canonicalOutput.Document = merged;
+        canonicalOutput.DocumentId = merged.Id;
         Session.Save(canonicalOutput);
 
         if (artifact != null)
         {
-            artifact.Document = document;
-            artifact.DocumentId = document.Id;
+            artifact.Document = merged;
+            artifact.DocumentId = merged.Id;
             Session.Save(artifact);
 
             attempt.ResponseArtifactId = artifact.Id;
         }
 
-        attempt.Document = document;
-        attempt.DocumentId = document.Id;
+        attempt.Document = merged;
+        attempt.DocumentId = merged.Id;
         Session.Save(attempt);
 
         if (reviewFlags is { Count: > 0 })
         {
             foreach (var flag in reviewFlags)
             {
-                flag.Document = document;
-                flag.DocumentId = document.Id;
+                flag.Document = merged;
+                flag.DocumentId = merged.Id;
                 Session.Save(flag);
             }
         }
 
-        statusEvent.Document = document;
-        statusEvent.DocumentId = document.Id;
+        statusEvent.Document = merged;
+        statusEvent.DocumentId = merged.Id;
         Session.Save(statusEvent);
     }
 }
