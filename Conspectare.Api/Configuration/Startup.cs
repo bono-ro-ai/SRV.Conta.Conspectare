@@ -1,3 +1,4 @@
+using FluentMigrator.Runner;
 using Microsoft.AspNetCore.HttpOverrides;
 using Scalar.AspNetCore;
 
@@ -25,6 +26,10 @@ public static class Startup
 
     public static void Configure(WebApplication app, IWebHostEnvironment env)
     {
+        using var scope = app.Services.CreateScope();
+        var runner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
+        runner.MigrateUp();
+
         app.UseForwardedHeaders();
         app.UseRouting();
 
