@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Infrastructure.Filters;
 using FluentNHibernate.Mapping;
 
 namespace Conspectare.Infrastructure.Mappings;
@@ -40,5 +41,7 @@ public class DocumentMap : ClassMap<Document>
         HasMany(x => x.Events).KeyColumn("document_id").Inverse().Cascade.AllDeleteOrphan();
 
         HasOne(x => x.CanonicalOutput).PropertyRef(nameof(CanonicalOutput.Document)).Cascade.All();
+
+        ApplyFilter<TenantFilterDefinition>("tenant_id = :tenantId");
     }
 }

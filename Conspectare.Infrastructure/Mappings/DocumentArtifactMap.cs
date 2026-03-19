@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Infrastructure.Filters;
 using FluentNHibernate.Mapping;
 
 namespace Conspectare.Infrastructure.Mappings;
@@ -21,5 +22,7 @@ public class DocumentArtifactMap : ClassMap<DocumentArtifact>
 
         Map(x => x.DocumentId).Column("document_id").Not.Insert().Not.Update();
         References(x => x.Document).Column("document_id").Not.Nullable();
+
+        ApplyFilter<TenantFilterDefinition>("tenant_id = :tenantId");
     }
 }
