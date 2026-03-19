@@ -8,6 +8,7 @@ using Conspectare.Domain.Entities;
 using Conspectare.Infrastructure.Settings;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
+using Conspectare.Services.Processors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -52,7 +53,7 @@ public class ClaudeApiClient : IClaudeApiClient
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
-            ["text"] = "Classify this document. Determine the document type, your confidence level, and whether it is accounting-relevant."
+            ["text"] = PromptProvider.GetTriagePrompt()
         });
 
         var tool = BuildTriageTool();
@@ -89,8 +90,7 @@ public class ClaudeApiClient : IClaudeApiClient
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
-            ["text"] = $"Extract all accounting data from this {documentType}. " +
-                       "Return the complete structured data including supplier, customer, line items, totals, dates, and payment information."
+            ["text"] = PromptProvider.GetExtractionPrompt(documentType)
         });
 
         var tool = BuildExtractionTool();
