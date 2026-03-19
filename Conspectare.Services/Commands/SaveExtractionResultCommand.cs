@@ -14,7 +14,7 @@ public class SaveExtractionResultCommand(
 {
     protected override void OnExecute()
     {
-        Session.Update(document);
+        Session.Merge(document);
 
         canonicalOutput.Document = document;
         canonicalOutput.DocumentId = document.Id;

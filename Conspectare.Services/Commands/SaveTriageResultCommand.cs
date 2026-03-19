@@ -11,7 +11,7 @@ public class SaveTriageResultCommand(
 {
     protected override void OnExecute()
     {
-        Session.Update(document);
+        Session.Merge(document);
 
         attempt.Document = document;
         attempt.DocumentId = document.Id;
