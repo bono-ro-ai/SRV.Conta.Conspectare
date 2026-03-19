@@ -100,11 +100,14 @@ public class DocumentsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> List(
         [FromQuery] string status,
+        [FromQuery] string search,
+        [FromQuery] DateTime? dateFrom,
+        [FromQuery] DateTime? dateTo,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _documentService.ListAsync(status, page, pageSize, ct);
+        var result = await _documentService.ListAsync(status, search, dateFrom, dateTo, page, pageSize, ct);
 
         if (!result.IsSuccess)
             return result.ToActionResult();

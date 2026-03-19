@@ -10,6 +10,9 @@ import { API_BASE } from "./config";
 
 export interface ListDocumentsParams {
   status?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
   page?: number;
   pageSize?: number;
 }
@@ -21,6 +24,15 @@ export async function getDocuments(
 
   if (params.status) {
     searchParams.set("status", params.status);
+  }
+  if (params.search) {
+    searchParams.set("search", params.search);
+  }
+  if (params.dateFrom) {
+    searchParams.set("dateFrom", params.dateFrom);
+  }
+  if (params.dateTo) {
+    searchParams.set("dateTo", params.dateTo);
   }
   if (params.page !== undefined) {
     searchParams.set("page", String(params.page));
