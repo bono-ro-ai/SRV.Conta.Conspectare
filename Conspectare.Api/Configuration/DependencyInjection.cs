@@ -1,5 +1,6 @@
 using ISession = NHibernate.ISession;
 using Conspectare.Infrastructure.Llm.Claude;
+using Conspectare.Infrastructure.Llm.Gemini;
 using Conspectare.Infrastructure.Settings;
 using Conspectare.Services.Infrastructure;
 using Conspectare.Infrastructure.Mappings;
@@ -44,8 +45,19 @@ internal static class DependencyInjection
         services.AddSingleton<IStorageService, S3StorageService>();
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
 
-        services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
-        services.AddHttpClient<ILlmApiClient, ClaudeApiClient>();
+        var llmProvider = config.GetValue<string>("Llm:Provider") ?? "claude";
+        switch (llmProvider.ToLowerInvariant())
+        {
+            case "gemini":
+                services.Configure<GeminiApiSettings>(config.GetSection("Gemini"));
+                services.AddHttpClient<ILlmApiClient, GeminiApiClient>();
+                break;
+            case "claude":
+            default:
+                services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
+                services.AddHttpClient<ILlmApiClient, ClaudeApiClient>();
+                break;
+        }
 
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();

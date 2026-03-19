@@ -1,23 +1,22 @@
 using System.Net;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
-using Conspectare.Infrastructure.Llm.Claude;
+using Conspectare.Infrastructure.Llm.Gemini;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Conspectare.Tests;
 
-public class ClaudeApiClientTests
+public class GeminiApiClientTests
 {
-    private static ClaudeApiSettings DefaultSettings => new()
+    private static GeminiApiSettings DefaultSettings => new()
     {
-        ApiKey = "test-key",
-        Model = "claude-sonnet-4-20250514",
-        MaxTokens = 4096,
-        BaseUrl = "https://api.anthropic.com",
+        ApiKey = "test-gemini-key",
+        Model = "gemini-2.5-flash",
+        MaxOutputTokens = 4096,
+        BaseUrl = "https://generativelanguage.googleapis.com",
         TimeoutSeconds = 30,
         MaxRetries = 3
     };
@@ -41,123 +40,135 @@ public class ClaudeApiClientTests
         return new MemoryStream(Encoding.UTF8.GetBytes(content));
     }
 
-    private static ClaudeApiClient CreateClient(
-        MockHttpMessageHandler handler, ClaudeApiSettings settings = null)
+    private static GeminiApiClient CreateClient(
+        MockHttpMessageHandler handler, GeminiApiSettings settings = null)
     {
         settings ??= DefaultSettings;
         var httpClient = new HttpClient(handler);
         var options = Options.Create(settings);
-        var logger = NullLogger<ClaudeApiClient>.Instance;
-        return new ClaudeApiClient(httpClient, options, logger);
+        var logger = NullLogger<GeminiApiClient>.Instance;
+        return new GeminiApiClient(httpClient, options, logger);
     }
 
     private static string BuildTriageResponse(
         string documentType = "invoice",
         decimal confidence = 0.95m,
         bool isAccountingRelevant = true,
-        int inputTokens = 500,
-        int outputTokens = 50)
+        int promptTokenCount = 500,
+        int candidatesTokenCount = 50)
     {
         var response = new JsonObject
         {
-            ["id"] = "msg_test123",
-            ["type"] = "message",
-            ["role"] = "assistant",
-            ["model"] = "claude-sonnet-4-20250514",
-            ["content"] = new JsonArray
+            ["candidates"] = new JsonArray
             {
                 new JsonObject
                 {
-                    ["type"] = "tool_use",
-                    ["id"] = "toolu_test",
-                    ["name"] = "classify_document",
-                    ["input"] = new JsonObject
+                    ["content"] = new JsonObject
                     {
-                        ["document_type"] = documentType,
-                        ["confidence"] = confidence,
-                        ["is_accounting_relevant"] = isAccountingRelevant,
-                        ["reasoning"] = "Document appears to be a standard invoice"
-                    }
-                }
-            },
-            ["usage"] = new JsonObject
-            {
-                ["input_tokens"] = inputTokens,
-                ["output_tokens"] = outputTokens
-            }
-        };
-
-        return response.ToJsonString();
-    }
-
-    private static string BuildExtractionResponse(
-        int inputTokens = 1000,
-        int outputTokens = 200)
-    {
-        var response = new JsonObject
-        {
-            ["id"] = "msg_test456",
-            ["type"] = "message",
-            ["role"] = "assistant",
-            ["model"] = "claude-sonnet-4-20250514",
-            ["content"] = new JsonArray
-            {
-                new JsonObject
-                {
-                    ["type"] = "tool_use",
-                    ["id"] = "toolu_test2",
-                    ["name"] = "extract_invoice_data",
-                    ["input"] = new JsonObject
-                    {
-                        ["invoice_number"] = "FAC-2024-001",
-                        ["invoice_date"] = "2024-03-15",
-                        ["due_date"] = "2024-04-15",
-                        ["currency"] = "RON",
-                        ["supplier"] = new JsonObject
-                        {
-                            ["name"] = "SC Furnizor SRL",
-                            ["tax_id"] = "RO12345678"
-                        },
-                        ["customer"] = new JsonObject
-                        {
-                            ["name"] = "SC Client SRL",
-                            ["tax_id"] = "RO87654321"
-                        },
-                        ["line_items"] = new JsonArray
+                        ["role"] = "model",
+                        ["parts"] = new JsonArray
                         {
                             new JsonObject
                             {
-                                ["description"] = "Servicii consultanta",
-                                ["quantity"] = 10,
-                                ["unit"] = "ore",
-                                ["unit_price"] = 100,
-                                ["vat_rate"] = 19,
-                                ["vat_amount"] = 190,
-                                ["line_total"] = 1190
-                            }
-                        },
-                        ["subtotal"] = 1000,
-                        ["total_vat"] = 190,
-                        ["total"] = 1190,
-                        ["review_flags"] = new JsonArray
-                        {
-                            new JsonObject
-                            {
-                                ["flag_type"] = "missing_field",
-                                ["severity"] = "warning",
-                                ["message"] = "Payment method not specified"
+                                ["functionCall"] = new JsonObject
+                                {
+                                    ["name"] = "classify_document",
+                                    ["args"] = new JsonObject
+                                    {
+                                        ["document_type"] = documentType,
+                                        ["confidence"] = confidence,
+                                        ["is_accounting_relevant"] = isAccountingRelevant,
+                                        ["reasoning"] = "Document appears to be a standard invoice"
+                                    }
+                                }
                             }
                         }
                     }
                 }
             },
-            ["usage"] = new JsonObject
+            ["usageMetadata"] = new JsonObject
             {
-                ["input_tokens"] = inputTokens,
-                ["output_tokens"] = outputTokens
+                ["promptTokenCount"] = promptTokenCount,
+                ["candidatesTokenCount"] = candidatesTokenCount
             }
         };
+        return response.ToJsonString();
+    }
 
+    private static string BuildExtractionResponse(
+        int promptTokenCount = 1000,
+        int candidatesTokenCount = 200)
+    {
+        var response = new JsonObject
+        {
+            ["candidates"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["content"] = new JsonObject
+                    {
+                        ["role"] = "model",
+                        ["parts"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["functionCall"] = new JsonObject
+                                {
+                                    ["name"] = "extract_invoice_data",
+                                    ["args"] = new JsonObject
+                                    {
+                                        ["invoice_number"] = "FAC-2024-001",
+                                        ["invoice_date"] = "2024-03-15",
+                                        ["due_date"] = "2024-04-15",
+                                        ["currency"] = "RON",
+                                        ["supplier"] = new JsonObject
+                                        {
+                                            ["name"] = "SC Furnizor SRL",
+                                            ["tax_id"] = "RO12345678"
+                                        },
+                                        ["customer"] = new JsonObject
+                                        {
+                                            ["name"] = "SC Client SRL",
+                                            ["tax_id"] = "RO87654321"
+                                        },
+                                        ["line_items"] = new JsonArray
+                                        {
+                                            new JsonObject
+                                            {
+                                                ["description"] = "Servicii consultanta",
+                                                ["quantity"] = 10,
+                                                ["unit"] = "ore",
+                                                ["unit_price"] = 100,
+                                                ["vat_rate"] = 19,
+                                                ["vat_amount"] = 190,
+                                                ["line_total"] = 1190
+                                            }
+                                        },
+                                        ["subtotal"] = 1000,
+                                        ["total_vat"] = 190,
+                                        ["total"] = 1190,
+                                        ["review_flags"] = new JsonArray
+                                        {
+                                            new JsonObject
+                                            {
+                                                ["flag_type"] = "missing_field",
+                                                ["severity"] = "warning",
+                                                ["message"] = "Payment method not specified"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ["usageMetadata"] = new JsonObject
+            {
+                ["promptTokenCount"] = promptTokenCount,
+                ["candidatesTokenCount"] = candidatesTokenCount
+            }
+        };
         return response.ToJsonString();
     }
 
@@ -174,7 +185,7 @@ public class ClaudeApiClientTests
         Assert.Equal("invoice", result.DocumentType);
         Assert.Equal(0.95m, result.Confidence);
         Assert.True(result.IsAccountingRelevant);
-        Assert.Equal("claude-sonnet-4-20250514", result.ModelId);
+        Assert.Equal("gemini-2.5-flash", result.ModelId);
         Assert.Equal("triage_v1.0.0", result.PromptVersion);
         Assert.Equal(500, result.InputTokens);
         Assert.Equal(50, result.OutputTokens);
@@ -196,11 +207,11 @@ public class ClaudeApiClientTests
         var requestBody = handler.Requests[0];
         Assert.Contains("text", requestBody);
         Assert.Contains("invoice test content", requestBody);
-        Assert.DoesNotContain("base64", requestBody);
+        Assert.DoesNotContain("inlineData", requestBody);
     }
 
     [Fact]
-    public async Task TriageAsync_ImageDocument_SendsBase64Content()
+    public async Task TriageAsync_ImageDocument_SendsInlineData()
     {
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, BuildTriageResponse());
         var client = CreateClient(handler);
@@ -212,7 +223,7 @@ public class ClaudeApiClientTests
 
         Assert.Single(handler.Requests);
         var requestBody = handler.Requests[0];
-        Assert.Contains("base64", requestBody);
+        Assert.Contains("inlineData", requestBody);
         Assert.Contains("image/jpeg", requestBody);
     }
 
@@ -228,7 +239,7 @@ public class ClaudeApiClientTests
 
         Assert.Contains("FAC-2024-001", result.OutputJson);
         Assert.Equal("1.0.0", result.SchemaVersion);
-        Assert.Equal("claude-sonnet-4-20250514", result.ModelId);
+        Assert.Equal("gemini-2.5-flash", result.ModelId);
         Assert.Equal("extraction_v1.0.0", result.PromptVersion);
         Assert.Equal(1000, result.InputTokens);
         Assert.Equal(200, result.OutputTokens);
@@ -311,7 +322,7 @@ public class ClaudeApiClientTests
     }
 
     [Fact]
-    public async Task TriageAsync_RequestContainsToolChoice()
+    public async Task TriageAsync_RequestContainsFunctionCallingConfig()
     {
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, BuildTriageResponse());
         var client = CreateClient(handler);
@@ -322,11 +333,13 @@ public class ClaudeApiClientTests
 
         var requestBody = handler.Requests[0];
         Assert.Contains("classify_document", requestBody);
-        Assert.Contains("tool_choice", requestBody);
+        Assert.Contains("functionCallingConfig", requestBody);
+        Assert.Contains("functionDeclarations", requestBody);
+        Assert.Contains("ANY", requestBody);
     }
 
     [Fact]
-    public async Task TriageAsync_RequestContainsHeaders()
+    public async Task TriageAsync_RequestContainsApiKeyInUrl()
     {
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, BuildTriageResponse());
         var client = CreateClient(handler);
@@ -335,10 +348,11 @@ public class ClaudeApiClientTests
         using var stream = CreateTestStream();
         await client.TriageAsync(doc, stream, "triage_v1.0.0");
 
-        Assert.Contains("x-api-key", handler.RequestHeaders.Keys);
-        Assert.Contains("anthropic-version", handler.RequestHeaders.Keys);
-        Assert.Equal("test-key", handler.RequestHeaders["x-api-key"]);
-        Assert.Equal("2023-06-01", handler.RequestHeaders["anthropic-version"]);
+        Assert.Single(handler.RequestUrls);
+        var url = handler.RequestUrls[0];
+        Assert.Contains("key=test-gemini-key", url);
+        Assert.Contains("generateContent", url);
+        Assert.Contains("gemini-2.5-flash", url);
     }
 
     [Fact]
@@ -354,51 +368,5 @@ public class ClaudeApiClientTests
         var requestBody = handler.Requests[0];
         Assert.Contains("invoice", requestBody);
         Assert.Contains("extract_invoice_data", requestBody);
-    }
-}
-
-/// <summary>
-/// Mock HttpMessageHandler that records requests and returns configured responses.
-/// </summary>
-public class MockHttpMessageHandler : HttpMessageHandler
-{
-    private readonly Queue<(HttpStatusCode StatusCode, string Body)> _responses;
-    public List<string> Requests { get; } = new();
-    public List<string> RequestUrls { get; } = new();
-    public Dictionary<string, string> RequestHeaders { get; } = new();
-
-    public MockHttpMessageHandler(HttpStatusCode statusCode, string responseBody)
-    {
-        _responses = new Queue<(HttpStatusCode, string)>();
-        _responses.Enqueue((statusCode, responseBody));
-    }
-
-    public MockHttpMessageHandler(Queue<(HttpStatusCode, string)> responses)
-    {
-        _responses = responses;
-    }
-
-    protected override async Task<HttpResponseMessage> SendAsync(
-        HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        var body = request.Content != null
-            ? await request.Content.ReadAsStringAsync(cancellationToken)
-            : "";
-        Requests.Add(body);
-        RequestUrls.Add(request.RequestUri?.ToString() ?? "");
-
-        foreach (var header in request.Headers)
-        {
-            RequestHeaders[header.Key] = string.Join(",", header.Value);
-        }
-
-        var (statusCode, responseBody) = _responses.Count > 1
-            ? _responses.Dequeue()
-            : _responses.Peek();
-
-        return new HttpResponseMessage(statusCode)
-        {
-            Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
-        };
     }
 }
