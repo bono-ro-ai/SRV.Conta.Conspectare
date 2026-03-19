@@ -17,6 +17,7 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return "-";
   return d.toLocaleString("ro-RO", {
     day: "2-digit",
     month: "2-digit",

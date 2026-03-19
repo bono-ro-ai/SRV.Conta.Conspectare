@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { authFetch } from "../services/api/authFetch";
 
 interface DocumentPreviewProps {
@@ -11,40 +11,45 @@ export function DocumentPreview({ contentType, documentId }: DocumentPreviewProp
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const controllerRef = useRef<AbortController | null>(null);
 
   const fetchContent = useCallback(async () => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
     setLoading(true);
     setError(null);
     try {
-      const response = await authFetch(`/api/v1/documents/${documentId}/raw`);
+      const response = await authFetch(`/api/v1/documents/${documentId}/raw`, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
       if (contentType.startsWith("image/")) {
         const blob = await response.blob();
-        setBlobUrl(URL.createObjectURL(blob));
+        if (!controller.signal.aborted) setBlobUrl(URL.createObjectURL(blob));
       } else if (
         contentType === "text/xml" ||
         contentType === "application/xml" ||
         contentType.startsWith("text/")
       ) {
         const text = await response.text();
-        setTextContent(text);
+        if (!controller.signal.aborted) setTextContent(text);
       } else if (contentType === "application/pdf") {
         const blob = await response.blob();
-        setBlobUrl(URL.createObjectURL(blob));
+        if (!controller.signal.aborted) setBlobUrl(URL.createObjectURL(blob));
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       setError(err instanceof Error ? err.message : "Failed to load preview.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [contentType, documentId]);
 
   useEffect(() => {
-    let cancelled = false;
-    fetchContent().then(() => {
-      if (cancelled) return;
-    });
+    fetchContent();
     return () => {
-      cancelled = true;
+      controllerRef.current?.abort();
       if (blobUrl) {
         URL.revokeObjectURL(blobUrl);
       }
