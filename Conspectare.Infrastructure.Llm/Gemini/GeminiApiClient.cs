@@ -31,6 +31,7 @@ public class GeminiApiClient : ILlmApiClient
         _logger = logger;
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
+        _httpClient.DefaultRequestHeaders.Add("x-goog-api-key", _settings.ApiKey);
     }
     public async Task<TriageResult> TriageAsync(
         Document doc, Stream rawFile, string promptVersion, CancellationToken ct = default)
@@ -176,7 +177,7 @@ public class GeminiApiClient : ILlmApiClient
     internal async Task<JsonObject> SendWithRetryAsync(JsonObject requestBody, CancellationToken ct)
     {
         var maxRetries = _settings.MaxRetries;
-        var url = $"/v1beta/models/{_settings.Model}:generateContent?key={_settings.ApiKey}";
+        var url = $"/v1beta/models/{_settings.Model}:generateContent";
         for (var attempt = 0; attempt <= maxRetries; attempt++)
         {
             using var content = new StringContent(

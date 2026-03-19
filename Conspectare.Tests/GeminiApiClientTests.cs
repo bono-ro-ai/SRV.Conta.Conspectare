@@ -339,20 +339,20 @@ public class GeminiApiClientTests
     }
 
     [Fact]
-    public async Task TriageAsync_RequestContainsApiKeyInUrl()
+    public async Task TriageAsync_RequestContainsApiKeyInHeader()
     {
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, BuildTriageResponse());
         var client = CreateClient(handler);
         var doc = CreateTestDocument();
-
         using var stream = CreateTestStream();
         await client.TriageAsync(doc, stream, "triage_v1.0.0");
-
         Assert.Single(handler.RequestUrls);
         var url = handler.RequestUrls[0];
-        Assert.Contains("key=test-gemini-key", url);
+        Assert.DoesNotContain("test-gemini-key", url);
         Assert.Contains("generateContent", url);
         Assert.Contains("gemini-2.5-flash", url);
+        Assert.True(handler.RequestHeaders.ContainsKey("x-goog-api-key"));
+        Assert.Equal("test-gemini-key", handler.RequestHeaders["x-goog-api-key"]);
     }
 
     [Fact]
