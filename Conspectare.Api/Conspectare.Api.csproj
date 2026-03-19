@@ -10,6 +10,8 @@
     <PackageReference Include="Scalar.AspNetCore" Version="2.4.1" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Conspectare.Infrastructure.Llm\Conspectare.Infrastructure.Llm.csproj" />
     <ProjectReference Include="..\Conspectare.Services\Conspectare.Services.csproj" />
+    <ProjectReference Include="..\Conspectare.Workers\Conspectare.Workers.csproj" />
   </ItemGroup>
 </Project>

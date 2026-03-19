@@ -8,12 +8,11 @@ namespace Conspectare.Services.Processors;
 
 public class ImageDocumentProcessor : IDocumentProcessor
 {
-    private readonly IClaudeApiClient _claudeApiClient;
+    private readonly ILlmApiClient _llmApiClient;
     private readonly ILogger<ImageDocumentProcessor> _logger;
-
-    public ImageDocumentProcessor(IClaudeApiClient claudeApiClient, ILogger<ImageDocumentProcessor> logger)
+    public ImageDocumentProcessor(ILlmApiClient llmApiClient, ILogger<ImageDocumentProcessor> logger)
     {
-        _claudeApiClient = claudeApiClient;
+        _llmApiClient = llmApiClient;
         _logger = logger;
     }
 
@@ -24,7 +23,7 @@ public class ImageDocumentProcessor : IDocumentProcessor
     {
         _logger.LogInformation("Triaging image document {DocumentId} via Claude vision", doc.Id);
 
-        return await _claudeApiClient.TriageAsync(
+        return await _llmApiClient.TriageAsync(
             doc,
             rawFile,
             PromptProvider.GetTriagePromptVersion(),
@@ -35,7 +34,7 @@ public class ImageDocumentProcessor : IDocumentProcessor
     {
         _logger.LogInformation("Extracting image document {DocumentId} via Claude vision", doc.Id);
 
-        return await _claudeApiClient.ExtractAsync(
+        return await _llmApiClient.ExtractAsync(
             doc,
             rawFile,
             doc.DocumentType,

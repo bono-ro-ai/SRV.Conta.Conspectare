@@ -1,5 +1,4 @@
-namespace Conspectare.Infrastructure.Settings;
-
+namespace Conspectare.Infrastructure.Llm.Claude;
 public class ClaudeApiSettings
 {
     public string ApiKey { get; set; }

@@ -1,4 +1,4 @@
-using Conspectare.Services.Infrastructure;
+using Conspectare.Workers;
 using Conspectare.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

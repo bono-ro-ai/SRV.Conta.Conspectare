@@ -5,11 +5,10 @@
     <Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <InternalsVisibleTo Include="Conspectare.Tests" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Conspectare.Domain\Conspectare.Domain.csproj" />
-    <ProjectReference Include="..\Conspectare.Infrastructure\Conspectare.Infrastructure.csproj" />
     <ProjectReference Include="..\Conspectare.Services\Conspectare.Services.csproj" />
   </ItemGroup>
 </Project>

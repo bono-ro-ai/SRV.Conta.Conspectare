@@ -5,29 +5,23 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
-using Conspectare.Infrastructure.Settings;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Processors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-namespace Conspectare.Services.Infrastructure;
-
-public class ClaudeApiClient : IClaudeApiClient
+namespace Conspectare.Infrastructure.Llm.Claude;
+public class ClaudeApiClient : ILlmApiClient
 {
     private const string AnthropicVersion = "2023-06-01";
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = false
     };
-
     private readonly HttpClient _httpClient;
     private readonly ClaudeApiSettings _settings;
     private readonly ILogger<ClaudeApiClient> _logger;
-
     public ClaudeApiClient(
         HttpClient httpClient,
         IOptions<ClaudeApiSettings> options,
@@ -36,39 +30,29 @@ public class ClaudeApiClient : IClaudeApiClient
         _httpClient = httpClient;
         _settings = options.Value;
         _logger = logger;
-
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _settings.ApiKey);
         _httpClient.DefaultRequestHeaders.Add("anthropic-version", AnthropicVersion);
     }
-
     public async Task<TriageResult> TriageAsync(
         Document doc, Stream rawFile, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
-
         var contentBlocks = await BuildContentBlocksAsync(doc, rawFile, ct);
-
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
             ["text"] = PromptProvider.GetTriagePrompt()
         });
-
         var tool = BuildTriageTool();
-
         var requestBody = BuildRequestBody(contentBlocks, new[] { tool }, "classify_document");
-
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
-
         var (toolInput, usage) = ParseToolUseResponse(response, "classify_document");
-
         var documentType = toolInput["document_type"]?.GetValue<string>() ?? "unknown";
         var confidence = toolInput["confidence"]?.GetValue<decimal>() ?? 0m;
         var isAccountingRelevant = toolInput["is_accounting_relevant"]?.GetValue<bool>() ?? false;
-
         return new TriageResult(
             DocumentType: documentType,
             Confidence: confidence,
@@ -79,32 +63,23 @@ public class ClaudeApiClient : IClaudeApiClient
             OutputTokens: usage.OutputTokens,
             LatencyMs: (int)sw.ElapsedMilliseconds);
     }
-
     public async Task<ExtractionResult> ExtractAsync(
         Document doc, Stream rawFile, string documentType, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
-
         var contentBlocks = await BuildContentBlocksAsync(doc, rawFile, ct);
-
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
             ["text"] = PromptProvider.GetExtractionPrompt(documentType)
         });
-
         var tool = BuildExtractionTool();
-
         var requestBody = BuildRequestBody(contentBlocks, new[] { tool }, "extract_invoice_data");
-
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
-
         var (toolInput, usage) = ParseToolUseResponse(response, "extract_invoice_data");
-
         var outputJson = toolInput.ToJsonString(JsonOptions);
         var schemaVersion = "1.0.0";
-
         var reviewFlags = new List<ReviewFlagInfo>();
         if (toolInput["review_flags"] is JsonArray flagsArray)
         {
@@ -119,7 +94,6 @@ public class ClaudeApiClient : IClaudeApiClient
                 }
             }
         }
-
         return new ExtractionResult(
             OutputJson: outputJson,
             SchemaVersion: schemaVersion,
@@ -130,20 +104,16 @@ public class ClaudeApiClient : IClaudeApiClient
             LatencyMs: (int)sw.ElapsedMilliseconds,
             ReviewFlags: reviewFlags);
     }
-
     private async Task<List<JsonObject>> BuildContentBlocksAsync(
         Document doc, Stream rawFile, CancellationToken ct)
     {
         var blocks = new List<JsonObject>();
-
         var contentType = doc.ContentType?.ToLowerInvariant() ?? "";
-
         if (contentType.StartsWith("image/"))
         {
             using var ms = new MemoryStream();
             await rawFile.CopyToAsync(ms, ct);
             var base64 = Convert.ToBase64String(ms.ToArray());
-
             var mediaType = contentType switch
             {
                 "image/jpeg" => "image/jpeg",
@@ -152,7 +122,6 @@ public class ClaudeApiClient : IClaudeApiClient
                 "image/webp" => "image/webp",
                 _ => "image/jpeg"
             };
-
             blocks.Add(new JsonObject
             {
                 ["type"] = "image",
@@ -168,17 +137,14 @@ public class ClaudeApiClient : IClaudeApiClient
         {
             using var reader = new StreamReader(rawFile, leaveOpen: true);
             var text = await reader.ReadToEndAsync(ct);
-
             blocks.Add(new JsonObject
             {
                 ["type"] = "text",
                 ["text"] = text
             });
         }
-
         return blocks;
     }
-
     private JsonObject BuildRequestBody(
         List<JsonObject> contentBlocks, JsonObject[] tools, string forcedToolName)
     {
@@ -190,9 +156,7 @@ public class ClaudeApiClient : IClaudeApiClient
                 ["content"] = new JsonArray(contentBlocks.Select(b => (JsonNode)b).ToArray())
             }
         };
-
         var toolsArray = new JsonArray(tools.Select(t => (JsonNode)t).ToArray());
-
         return new JsonObject
         {
             ["model"] = _settings.Model,
@@ -206,18 +170,15 @@ public class ClaudeApiClient : IClaudeApiClient
             }
         };
     }
-
     internal async Task<JsonObject> SendWithRetryAsync(JsonObject requestBody, CancellationToken ct)
     {
         var maxRetries = _settings.MaxRetries;
-
         for (var attempt = 0; attempt <= maxRetries; attempt++)
         {
             using var content = new StringContent(
                 requestBody.ToJsonString(JsonOptions),
                 Encoding.UTF8,
                 new MediaTypeHeaderValue("application/json"));
-
             HttpResponseMessage response;
             try
             {
@@ -228,17 +189,14 @@ public class ClaudeApiClient : IClaudeApiClient
                 throw new TimeoutException(
                     $"Claude API request timed out after {_settings.TimeoutSeconds} seconds");
             }
-
             if (response.IsSuccessStatusCode)
             {
                 var responseJson = await response.Content.ReadAsStringAsync(ct);
                 return JsonNode.Parse(responseJson)?.AsObject()
                        ?? throw new InvalidOperationException("Claude API returned empty response");
             }
-
             var statusCode = (int)response.StatusCode;
             var isRetryable = statusCode == 429 || statusCode == 503;
-
             if (!isRetryable || attempt >= maxRetries)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
@@ -247,27 +205,20 @@ public class ClaudeApiClient : IClaudeApiClient
                     null,
                     response.StatusCode);
             }
-
             var delaySeconds = attempt switch { 0 => 5, 1 => 15, _ => 30 };
-
             _logger.LogWarning(
                 "Claude API returned {StatusCode}, retrying in {Delay}s (attempt {Attempt}/{MaxRetries})",
                 statusCode, delaySeconds, attempt + 1, maxRetries);
-
             await Task.Delay(TimeSpan.FromSeconds(delaySeconds), ct);
         }
-
         throw new InvalidOperationException("Exhausted all retry attempts");
     }
-
     private static (JsonObject ToolInput, UsageInfo Usage) ParseToolUseResponse(
         JsonObject response, string expectedToolName)
     {
         var contentArray = response["content"]?.AsArray()
             ?? throw new InvalidOperationException("Claude API response missing 'content' array");
-
         JsonObject toolInput = null;
-
         foreach (var block in contentArray)
         {
             if (block?["type"]?.GetValue<string>() == "tool_use" &&
@@ -277,20 +228,16 @@ public class ClaudeApiClient : IClaudeApiClient
                 break;
             }
         }
-
         if (toolInput == null)
         {
             throw new InvalidOperationException(
                 $"Claude API response did not contain expected tool_use block '{expectedToolName}'");
         }
-
         var usage = response["usage"]?.AsObject();
         var inputTokens = usage?["input_tokens"]?.GetValue<int>();
         var outputTokens = usage?["output_tokens"]?.GetValue<int>();
-
         return (toolInput, new UsageInfo(inputTokens, outputTokens));
     }
-
     private static JsonObject BuildTriageTool()
     {
         return new JsonObject
@@ -326,7 +273,6 @@ public class ClaudeApiClient : IClaudeApiClient
             }
         };
     }
-
     private static JsonObject BuildExtractionTool()
     {
         return new JsonObject
@@ -414,6 +360,5 @@ public class ClaudeApiClient : IClaudeApiClient
             }
         };
     }
-
     internal record UsageInfo(int? InputTokens, int? OutputTokens);
 }

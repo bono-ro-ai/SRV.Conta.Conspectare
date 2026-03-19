@@ -11,13 +11,13 @@ namespace Conspectare.Tests;
 
 public class PdfDocumentProcessorTests
 {
-    private readonly Mock<IClaudeApiClient> _claudeApiClientMock = new();
+    private readonly Mock<ILlmApiClient> _llmApiClientMock = new();
     private readonly Mock<ILogger<PdfDocumentProcessor>> _loggerMock = new();
     private readonly PdfDocumentProcessor _processor;
 
     public PdfDocumentProcessorTests()
     {
-        _processor = new PdfDocumentProcessor(_claudeApiClientMock.Object, _loggerMock.Object);
+        _processor = new PdfDocumentProcessor(_llmApiClientMock.Object, _loggerMock.Object);
     }
 
     private static Document CreateTestDocument(string inputFormat = null, string documentType = "invoice") => new()
@@ -58,7 +58,7 @@ public class PdfDocumentProcessorTests
             OutputTokens: 50,
             LatencyMs: 3200);
 
-        _claudeApiClientMock
+        _llmApiClientMock
             .Setup(c => c.TriageAsync(
                 doc,
                 stream,
@@ -69,7 +69,7 @@ public class PdfDocumentProcessorTests
         var result = await _processor.TriageAsync(doc, stream, CancellationToken.None);
 
         Assert.Equal(expectedResult, result);
-        _claudeApiClientMock.Verify(c => c.TriageAsync(
+        _llmApiClientMock.Verify(c => c.TriageAsync(
             doc,
             stream,
             PromptProvider.GetTriagePromptVersion(),
@@ -92,7 +92,7 @@ public class PdfDocumentProcessorTests
             LatencyMs: 4500,
             ReviewFlags: new List<ReviewFlagInfo>());
 
-        _claudeApiClientMock
+        _llmApiClientMock
             .Setup(c => c.ExtractAsync(
                 doc,
                 stream,
@@ -104,7 +104,7 @@ public class PdfDocumentProcessorTests
         var result = await _processor.ExtractAsync(doc, stream, CancellationToken.None);
 
         Assert.Equal(expectedResult, result);
-        _claudeApiClientMock.Verify(c => c.ExtractAsync(
+        _llmApiClientMock.Verify(c => c.ExtractAsync(
             doc,
             stream,
             "invoice",

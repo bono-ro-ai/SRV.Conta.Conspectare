@@ -1,22 +1,19 @@
 using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
+using Conspectare.Services;
 using Conspectare.Services.Commands;
-using Conspectare.Services.Infrastructure;
 using Conspectare.Services.Interfaces;
+using Conspectare.Services.Models;
 using Conspectare.Services.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-
-namespace Conspectare.Services.Workers;
-
+namespace Conspectare.Workers;
 public class TriageWorker : DistributedBackgroundService
 {
     private const int BatchSize = 5;
     private const decimal MinConfidenceThreshold = 0.7m;
-
     protected override string JobName => "triage_worker";
     protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
-
     public TriageWorker(
         IDistributedLock distributedLock,
         IServiceScopeFactory scopeFactory,
@@ -24,26 +21,19 @@ public class TriageWorker : DistributedBackgroundService
         : base(distributedLock, scopeFactory, logger)
     {
     }
-
     protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
     {
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<TriageWorker>>();
         var processorRegistry = scope.ServiceProvider.GetRequiredService<IProcessorRegistry>();
         var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
         var workflow = scope.ServiceProvider.GetRequiredService<DocumentStatusWorkflow>();
-
         var pendingDocs = new FindPendingTriageDocumentsQuery(BatchSize).Execute();
-
         if (pendingDocs.Count == 0)
             return 0;
-
         var claimedDocs = new ClaimDocumentsForTriageCommand(pendingDocs).Execute();
-
         if (claimedDocs.Count == 0)
             return 0;
-
         var processedCount = 0;
-
         foreach (var doc in claimedDocs)
         {
             try
@@ -57,10 +47,8 @@ public class TriageWorker : DistributedBackgroundService
                     "TriageWorker: failed to triage document {DocumentId}", doc.Id);
             }
         }
-
         return processedCount;
     }
-
     private static async Task ProcessDocumentAsync(
         Document doc,
         IProcessorRegistry processorRegistry,
@@ -70,20 +58,14 @@ public class TriageWorker : DistributedBackgroundService
         CancellationToken ct)
     {
         var processor = processorRegistry.Resolve(doc.InputFormat, doc.ContentType);
-
         await using var rawFileStream = await storageService.DownloadAsync(doc.RawFileS3Key, ct);
-
         var triageResult = await processor.TriageAsync(doc, rawFileStream, ct);
-
         var utcNow = DateTime.UtcNow;
-
         doc.DocumentType = triageResult.DocumentType;
         doc.TriageConfidence = triageResult.Confidence;
         doc.IsAccountingRelevant = triageResult.IsAccountingRelevant;
         doc.UpdatedAt = utcNow;
-
         var nextStatus = DetermineNextStatus(triageResult);
-
         if (!workflow.CanTransition(DocumentStatus.Triaging, nextStatus))
         {
             logger.LogError(
@@ -91,9 +73,7 @@ public class TriageWorker : DistributedBackgroundService
                 DocumentStatus.Triaging, nextStatus, doc.Id);
             return;
         }
-
         doc.Status = nextStatus;
-
         var attempt = new ExtractionAttempt
         {
             DocumentId = doc.Id,
@@ -110,7 +90,6 @@ public class TriageWorker : DistributedBackgroundService
             CreatedAt = utcNow,
             CompletedAt = utcNow
         };
-
         var statusEvent = new DocumentEvent
         {
             DocumentId = doc.Id,
@@ -123,23 +102,18 @@ public class TriageWorker : DistributedBackgroundService
                       $"accounting_relevant={triageResult.IsAccountingRelevant}",
             CreatedAt = utcNow
         };
-
         new SaveTriageResultCommand(doc, attempt, statusEvent).Execute();
-
         logger.LogInformation(
             "TriageWorker: document {DocumentId} triaged -> {NextStatus} " +
             "(type={DocumentType}, confidence={Confidence:F2})",
             doc.Id, nextStatus, triageResult.DocumentType, triageResult.Confidence);
     }
-
-    private static string DetermineNextStatus(Models.TriageResult result)
+    private static string DetermineNextStatus(TriageResult result)
     {
         if (!result.IsAccountingRelevant)
             return DocumentStatus.Rejected;
-
         if (result.Confidence < MinConfidenceThreshold)
             return DocumentStatus.ReviewRequired;
-
         return DocumentStatus.PendingExtraction;
     }
 }
