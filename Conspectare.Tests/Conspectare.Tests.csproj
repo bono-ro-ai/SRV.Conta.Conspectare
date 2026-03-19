@@ -17,6 +17,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.3" />
+    <PackageReference Include="FluentNHibernate" Version="3.4.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Conspectare.Api\Conspectare.Api.csproj" />

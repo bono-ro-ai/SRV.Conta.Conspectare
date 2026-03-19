@@ -1,3 +1,4 @@
+using ISession = NHibernate.ISession;
 using Conspectare.Services.Core.Database;
 
 namespace Conspectare.Api.Configuration;
@@ -6,6 +7,16 @@ internal static class DependencyInjection
 {
     internal static void RegisterAppServices(IConfiguration config, IServiceCollection services)
     {
-        NHibernateConspectare.Configure<NHibernateConspectare>(config.GetConnectionString("ConspectareDb")!);
+        var nhSection = config.GetSection("NHibernate");
+        var showSql = nhSection.GetValue<bool>("ShowSql");
+        var formatSql = nhSection.GetValue<bool>("FormatSql");
+
+        NHibernateConspectare.Configure<NHibernateConspectare>(
+            config.GetConnectionString("ConspectareDb")!,
+            showSql,
+            formatSql);
+
+        services.AddSingleton(NHibernateConspectare.SessionFactory);
+        services.AddScoped<ISession>(sp => sp.GetRequiredService<NHibernate.ISessionFactory>().OpenSession());
     }
 }
