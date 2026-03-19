@@ -49,6 +49,7 @@ internal static class DependencyInjection
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
         services.AddScoped<IDocumentProcessor, ImageDocumentProcessor>();
+        services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
         services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
         services.AddScoped<IDocumentService, DocumentService>();
 
