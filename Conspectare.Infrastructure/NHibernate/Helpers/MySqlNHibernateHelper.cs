@@ -43,9 +43,12 @@ public class MySqlNHibernateHelper : INHibernateHelper
                 return _sessionFactory;
 
             lock (_syncLock)
-                _sessionFactory = Fluently.Configure(_configuration)
-                    .Mappings(m => m.FluentMappings.AddFromAssembly(_mappingAssembly))
-                    .BuildSessionFactory();
+            {
+                if (_sessionFactory == null)
+                    _sessionFactory = Fluently.Configure(_configuration)
+                        .Mappings(m => m.FluentMappings.AddFromAssembly(_mappingAssembly))
+                        .BuildSessionFactory();
+            }
 
             return _sessionFactory;
         }
