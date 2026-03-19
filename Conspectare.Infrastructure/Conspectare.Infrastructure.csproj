@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NHibernate" Version="5.5.2" />
+    <PackageReference Include="FluentNHibernate" Version="3.4.0" />
+    <PackageReference Include="NHibernate.Driver.MySqlConnector" Version="2.0.5" />
+    <PackageReference Include="MySqlConnector" Version="2.4.0" />
+    <PackageReference Include="AWSSDK.S3" Version="3.7.405.2" />
+  </ItemGroup>
+</Project>
