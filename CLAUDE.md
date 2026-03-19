@@ -57,6 +57,10 @@ feat/<JIRA-KEY>-<slug>
 fix/<JIRA-KEY>-<slug>
 ```
 
+## Deployment
+
+Railway (staging). See `docs/DEPLOYMENT.md` for setup, env vars, and health check details.
+
 ## Jira Project
 
 GO
