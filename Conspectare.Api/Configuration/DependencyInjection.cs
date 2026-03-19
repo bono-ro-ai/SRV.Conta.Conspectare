@@ -6,6 +6,7 @@ using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services;
 using Conspectare.Services.Interfaces;
+using Conspectare.Services.Workers;
 using FluentMigrator.Runner;
 
 namespace Conspectare.Api.Configuration;
@@ -44,5 +45,7 @@ internal static class DependencyInjection
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
         services.AddScoped<IDocumentService, DocumentService>();
+
+        services.AddHostedService<TriageWorker>();
     }
 }

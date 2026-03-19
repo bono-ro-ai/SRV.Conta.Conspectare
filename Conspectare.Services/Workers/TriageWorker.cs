@@ -1,0 +1,145 @@
+using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
+using Conspectare.Services.Commands;
+using Conspectare.Services.Infrastructure;
+using Conspectare.Services.Interfaces;
+using Conspectare.Services.Queries;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace Conspectare.Services.Workers;
+
+public class TriageWorker : DistributedBackgroundService
+{
+    private const int BatchSize = 5;
+    private const decimal MinConfidenceThreshold = 0.7m;
+
+    protected override string JobName => "triage_worker";
+    protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
+
+    public TriageWorker(
+        IDistributedLock distributedLock,
+        IServiceScopeFactory scopeFactory,
+        ILogger<TriageWorker> logger)
+        : base(distributedLock, scopeFactory, logger)
+    {
+    }
+
+    protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TriageWorker>>();
+        var processorRegistry = scope.ServiceProvider.GetRequiredService<IProcessorRegistry>();
+        var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
+        var workflow = scope.ServiceProvider.GetRequiredService<DocumentStatusWorkflow>();
+
+        var pendingDocs = new FindPendingTriageDocumentsQuery(BatchSize).Execute();
+
+        if (pendingDocs.Count == 0)
+            return 0;
+
+        var claimedDocs = new ClaimDocumentsForTriageCommand(pendingDocs).Execute();
+
+        if (claimedDocs.Count == 0)
+            return 0;
+
+        var processedCount = 0;
+
+        foreach (var doc in claimedDocs)
+        {
+            try
+            {
+                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, logger, ct);
+                processedCount++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex,
+                    "TriageWorker: failed to triage document {DocumentId}", doc.Id);
+            }
+        }
+
+        return processedCount;
+    }
+
+    private static async Task ProcessDocumentAsync(
+        Document doc,
+        IProcessorRegistry processorRegistry,
+        IStorageService storageService,
+        DocumentStatusWorkflow workflow,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var processor = processorRegistry.Resolve(doc.InputFormat, doc.ContentType);
+
+        await using var rawFileStream = await storageService.DownloadAsync(doc.RawFileS3Key, ct);
+
+        var triageResult = await processor.TriageAsync(doc, rawFileStream, ct);
+
+        var utcNow = DateTime.UtcNow;
+
+        doc.DocumentType = triageResult.DocumentType;
+        doc.TriageConfidence = triageResult.Confidence;
+        doc.IsAccountingRelevant = triageResult.IsAccountingRelevant;
+        doc.UpdatedAt = utcNow;
+
+        var nextStatus = DetermineNextStatus(triageResult);
+
+        if (!workflow.CanTransition(DocumentStatus.Triaging, nextStatus))
+        {
+            logger.LogError(
+                "TriageWorker: invalid transition from {From} to {To} for document {DocumentId}",
+                DocumentStatus.Triaging, nextStatus, doc.Id);
+            return;
+        }
+
+        doc.Status = nextStatus;
+
+        var attempt = new ExtractionAttempt
+        {
+            DocumentId = doc.Id,
+            TenantId = doc.TenantId,
+            AttemptNumber = doc.ExtractionAttempts.Count + 1,
+            Phase = "triage",
+            ModelId = triageResult.ModelId,
+            PromptVersion = triageResult.PromptVersion,
+            Status = "completed",
+            InputTokens = triageResult.InputTokens,
+            OutputTokens = triageResult.OutputTokens,
+            LatencyMs = triageResult.LatencyMs,
+            Confidence = triageResult.Confidence,
+            CreatedAt = utcNow,
+            CompletedAt = utcNow
+        };
+
+        var statusEvent = new DocumentEvent
+        {
+            DocumentId = doc.Id,
+            TenantId = doc.TenantId,
+            EventType = "status_change",
+            FromStatus = DocumentStatus.Triaging,
+            ToStatus = nextStatus,
+            Details = $"Triage completed: type={triageResult.DocumentType}, " +
+                      $"confidence={triageResult.Confidence:F2}, " +
+                      $"accounting_relevant={triageResult.IsAccountingRelevant}",
+            CreatedAt = utcNow
+        };
+
+        new SaveTriageResultCommand(doc, attempt, statusEvent).Execute();
+
+        logger.LogInformation(
+            "TriageWorker: document {DocumentId} triaged -> {NextStatus} " +
+            "(type={DocumentType}, confidence={Confidence:F2})",
+            doc.Id, nextStatus, triageResult.DocumentType, triageResult.Confidence);
+    }
+
+    private static string DetermineNextStatus(Models.TriageResult result)
+    {
+        if (!result.IsAccountingRelevant)
+            return DocumentStatus.Rejected;
+
+        if (result.Confidence < MinConfidenceThreshold)
+            return DocumentStatus.ReviewRequired;
+
+        return DocumentStatus.PendingExtraction;
+    }
+}
