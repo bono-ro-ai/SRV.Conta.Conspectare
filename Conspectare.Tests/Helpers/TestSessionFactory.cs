@@ -1,3 +1,4 @@
+using Conspectare.Infrastructure.Mappings;
 using FluentNHibernate.Cfg;
 using Microsoft.Data.Sqlite;
 using NHibernate;
@@ -41,7 +42,7 @@ public static class TestSessionFactory
         });
 
         var factory = Fluently.Configure(cfg)
-            .Mappings(_ => { })
+            .Mappings(m => m.FluentMappings.AddFromAssemblyOf<ApiClientMap>())
             .BuildSessionFactory();
 
         return (factory, cfg);

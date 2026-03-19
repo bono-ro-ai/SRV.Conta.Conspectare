@@ -1,4 +1,11 @@
 using Conspectare.Tests.Helpers;
+using FluentNHibernate.Cfg;
+using Microsoft.Data.Sqlite;
+using NHibernate.Cfg;
+using NHibernate.Connection;
+using NHibernate.Dialect;
+using NHibernate.Tool.hbm2ddl;
+using Conspectare.Infrastructure.Mappings;
 using Xunit;
 using ISession = NHibernate.ISession;
 
@@ -32,5 +39,53 @@ public class NHibernateSessionTests
 
         session.Close();
         session.Dispose();
+    }
+
+    [Fact]
+    public void SchemaExport_AllMappings_Succeeds()
+    {
+        var cfg = new Configuration();
+        cfg.DataBaseIntegration(db =>
+        {
+            db.ConnectionProvider<DriverConnectionProvider>();
+            db.Driver<MicrosoftDataSqliteDriver>();
+            db.Dialect<SQLiteDialect>();
+            db.ConnectionString = "Data Source=:memory:";
+            db.KeywordsAutoImport = Hbm2DDLKeyWords.None;
+        });
+
+        var nhCfg = Fluently.Configure(cfg)
+            .Mappings(m => m.FluentMappings.AddFromAssemblyOf<ApiClientMap>())
+            .BuildConfiguration();
+
+        var export = new SchemaExport(nhCfg);
+
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+
+        export.Execute(false, true, false, connection, null);
+
+        using var cmd = connection.CreateCommand();
+        cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name";
+        using var reader = cmd.ExecuteReader();
+
+        var tables = new List<string>();
+        while (reader.Read())
+            tables.Add(reader.GetString(0));
+
+        var expected = new[]
+        {
+            "cfg_api_clients",
+            "pipe_documents",
+            "pipe_document_artifacts",
+            "pipe_extraction_attempts",
+            "pipe_canonical_outputs",
+            "pipe_document_events",
+            "pipe_review_flags",
+            "audit_job_executions"
+        };
+
+        foreach (var table in expected)
+            Assert.Contains(table, tables);
     }
 }
