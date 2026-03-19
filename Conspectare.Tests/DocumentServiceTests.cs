@@ -6,7 +6,6 @@ using Conspectare.Tests.Helpers;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using NHibernate.Cfg;
 using NHibernate.Tool.hbm2ddl;
 using Xunit;
@@ -102,14 +101,13 @@ public class DocumentServiceTests
     private readonly MockStorageService _storageService = new();
     private readonly MockTenantContext _tenantContext = new() { TenantId = 1, ApiKeyPrefix = "dp_test_" };
     private readonly DocumentStatusWorkflow _workflow = new();
-    private readonly IPipelineSignal _pipelineSignal = Mock.Of<IPipelineSignal>();
     private readonly ILogger<DocumentService> _logger = NullLogger<DocumentService>.Instance;
 
     private DocumentService CreateService(SharedConnectionSessionFactory sharedFactory)
     {
         // Create a thin adapter that delegates OpenSession to the shared factory
         var adapter = new SessionFactoryAdapter(sharedFactory);
-        return new DocumentService(adapter, _storageService, _tenantContext, _workflow, _pipelineSignal, _logger);
+        return new DocumentService(adapter, _storageService, _tenantContext, _workflow, _logger);
     }
 
     private ApiClient CreateTenant(ISession session, string name = "Test Tenant")

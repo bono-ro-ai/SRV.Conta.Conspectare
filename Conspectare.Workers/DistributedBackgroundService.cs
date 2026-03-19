@@ -14,24 +14,20 @@ public abstract class DistributedBackgroundService : BackgroundService
     private readonly IDistributedLock _lock;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger _logger;
-    private readonly IPipelineSignal _signal;
     private readonly string _instanceId;
     private TimeSpan _currentInterval;
     protected abstract string JobName { get; }
     protected abstract TimeSpan Interval { get; }
     protected virtual bool IsOneShot => false;
     protected virtual TimeSpan StartupDelay => TimeSpan.FromSeconds(5);
-    protected virtual string SignalStage => null;
     protected DistributedBackgroundService(
         IDistributedLock distributedLock,
         IServiceScopeFactory scopeFactory,
-        ILogger logger,
-        IPipelineSignal signal = null)
+        ILogger logger)
     {
         _lock = distributedLock;
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _signal = signal;
         _instanceId = $"{Environment.MachineName}-{Guid.NewGuid().ToString("N")[..8]}";
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -48,10 +44,7 @@ public abstract class DistributedBackgroundService : BackgroundService
             _logger.LogInformation("{JobName}: next run in {Delay}", JobName, delay);
             try
             {
-                if (_signal != null && SignalStage != null)
-                    await _signal.WaitAsync(SignalStage, delay, stoppingToken);
-                else
-                    await Task.Delay(delay, stoppingToken);
+                await Task.Delay(delay, stoppingToken);
             }
             catch (OperationCanceledException)
             {

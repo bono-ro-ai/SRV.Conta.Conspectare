@@ -14,13 +14,11 @@ public class ExtractionWorker : DistributedBackgroundService
     private const int BatchSize = 5;
     protected override string JobName => "extraction_worker";
     protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
-    protected override string SignalStage => "extraction";
     public ExtractionWorker(
         IDistributedLock distributedLock,
         IServiceScopeFactory scopeFactory,
-        ILogger<ExtractionWorker> logger,
-        IPipelineSignal signal)
-        : base(distributedLock, scopeFactory, logger, signal)
+        ILogger<ExtractionWorker> logger)
+        : base(distributedLock, scopeFactory, logger)
     {
     }
     protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
