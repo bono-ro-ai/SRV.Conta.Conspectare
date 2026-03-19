@@ -157,7 +157,7 @@ public class DocumentService : IDocumentService
         _logger.LogInformation("Ingested document {DocumentId} for tenant {TenantId}, file '{FileName}'",
             document.Id, tenantId, fileName);
 
-        return OperationResult<Document>.Created(document);
+        return OperationResult<Document>.Accepted(document);
     }
 
     public Task<OperationResult<Document>> GetByIdAsync(long id, CancellationToken ct = default)
@@ -210,7 +210,7 @@ public class DocumentService : IDocumentService
             return OperationResult<Document>.NotFound($"Document with id {id} not found.");
 
         if (!_workflow.CanTransition(document.Status, DocumentStatus.PendingTriage))
-            return OperationResult<Document>.BadRequest(
+            return OperationResult<Document>.Conflict(
                 $"Cannot retry document in status '{document.Status}'.");
 
         if (document.RetryCount >= document.MaxRetries)
