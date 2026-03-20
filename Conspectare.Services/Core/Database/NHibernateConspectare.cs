@@ -18,4 +18,9 @@ public class NHibernateConspectare
     public static ISession OpenSession() => _internalHelper.OpenSession();
 
     public static IStatelessSession OpenStatelessSession() => _internalHelper.OpenStatelessSession();
+
+    public static void ConfigureForTests(INHibernateHelper helper)
+    {
+        _internalHelper = helper;
+    }
 }

@@ -1,7 +1,4 @@
-using System.Security.Cryptography;
-using System.Text;
 using Conspectare.Api.DTOs;
-using Conspectare.Domain.Entities;
 using Conspectare.Services.Commands;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Queries;
@@ -14,10 +11,12 @@ namespace Conspectare.Api.Controllers;
 public class AdminApiClientsController : ControllerBase
 {
     private readonly ITenantContext _tenant;
+    private readonly ILogger<AdminApiClientsController> _logger;
 
-    public AdminApiClientsController(ITenantContext tenant)
+    public AdminApiClientsController(ITenantContext tenant, ILogger<AdminApiClientsController> logger)
     {
         _tenant = tenant;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -39,33 +38,53 @@ public class AdminApiClientsController : ControllerBase
                 Status = StatusCodes.Status400BadRequest,
                 Detail = "Name is required."
             });
-        var randomBytes = RandomNumberGenerator.GetBytes(32);
-        var hexChars = Convert.ToHexStringLower(randomBytes);
-        var plainKey = $"csp_{hexChars}";
-        var prefix = plainKey[..8];
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(plainKey));
-        var hashHex = Convert.ToHexStringLower(hash);
-        var now = DateTime.UtcNow;
-        var apiClient = new ApiClient
-        {
-            Name = request.Name,
-            ApiKeyHash = hashHex,
-            ApiKeyPrefix = prefix,
-            IsActive = true,
-            IsAdmin = false,
-            RateLimitPerMin = request.RateLimitPerMin > 0 ? request.RateLimitPerMin : 60,
-            MaxFileSizeMb = request.MaxFileSizeMb > 0 ? request.MaxFileSizeMb : 10,
-            WebhookUrl = request.WebhookUrl,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-        new SaveApiClientCommand(apiClient).Execute();
+        if (request.Name.Length > 200)
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Name must not exceed 200 characters."
+            });
+        if (request.RateLimitPerMin <= 0)
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "RateLimitPerMin must be a positive integer."
+            });
+        if (request.MaxFileSizeMb <= 0)
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "MaxFileSizeMb must be a positive integer."
+            });
+        if (!string.IsNullOrWhiteSpace(request.WebhookUrl)
+            && !(Uri.TryCreate(request.WebhookUrl, UriKind.Absolute, out var uri)
+                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)))
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "WebhookUrl must be a valid absolute HTTP or HTTPS URI."
+            });
+        var result = new SaveApiClientCommand(
+            request.Name,
+            request.RateLimitPerMin,
+            request.MaxFileSizeMb,
+            request.WebhookUrl).Execute();
+        _logger.LogInformation("Admin API client created: {ClientId} {ClientName} by admin {AdminPrefix}",
+            result.ApiClient.Id, result.ApiClient.Name, _tenant.ApiKeyPrefix);
         var response = new CreateApiClientResponse(
-            apiClient.Id,
-            apiClient.Name,
-            apiClient.ApiKeyPrefix,
-            plainKey,
-            apiClient.CreatedAt);
+            result.ApiClient.Id,
+            result.ApiClient.Name,
+            result.ApiClient.ApiKeyPrefix,
+            result.PlainKey,
+            result.ApiClient.CreatedAt);
         return new ObjectResult(response) { StatusCode = StatusCodes.Status201Created };
     }
 
@@ -110,6 +129,8 @@ public class AdminApiClientsController : ControllerBase
                 Status = StatusCodes.Status404NotFound,
                 Detail = $"API client with id {id} not found."
             });
+        _logger.LogInformation("Admin API client soft-deleted: {ClientId} by admin {AdminPrefix}",
+            id, _tenant.ApiKeyPrefix);
         return NoContent();
     }
 }

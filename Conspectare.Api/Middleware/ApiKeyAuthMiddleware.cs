@@ -12,7 +12,7 @@ public class ApiKeyAuthMiddleware
 {
     private readonly RequestDelegate _next;
 
-    private static readonly string[] ExemptPrefixes = ["/health", "/swagger", "/scalar"];
+    private static readonly string[] ExemptPrefixes = ["/health", "/swagger", "/scalar", "/metrics"];
 
     public ApiKeyAuthMiddleware(RequestDelegate next)
     {
@@ -21,6 +21,12 @@ public class ApiKeyAuthMiddleware
 
     public async Task InvokeAsync(HttpContext context, ISessionFactory sessionFactory, ITenantContext tenantContext)
     {
+        if (context.Request.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         var path = context.Request.Path.Value ?? string.Empty;
 
         if (ExemptPrefixes.Any(prefix => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
