@@ -69,4 +69,46 @@ public class PromptServiceTests
 
         Assert.NotEqual(triageResult.Version, extractionResult.Version);
     }
+
+    [Fact]
+    public void SelectByWeight_SingleVersion_ReturnsIt()
+    {
+        var version = new PromptVersion { Version = "v1", PromptText = "test", TrafficWeight = 100 };
+        var result = _service.SelectByWeight(new List<PromptVersion> { version });
+
+        Assert.Equal("v1", result.Version);
+    }
+
+    [Fact]
+    public void SelectByWeight_AllZeroWeights_DoesNotThrow()
+    {
+        var versions = new List<PromptVersion>
+        {
+            new() { Version = "v1", PromptText = "a", TrafficWeight = 0 },
+            new() { Version = "v2", PromptText = "b", TrafficWeight = 0 }
+        };
+
+        var result = _service.SelectByWeight(versions);
+        Assert.NotNull(result);
+    }
+
+    [Fact]
+    public void SelectByWeight_TwoVersions_ReturnsOneOfThem()
+    {
+        var versions = new List<PromptVersion>
+        {
+            new() { Version = "v1", PromptText = "a", TrafficWeight = 70 },
+            new() { Version = "v2", PromptText = "b", TrafficWeight = 30 }
+        };
+
+        var selectedVersions = new HashSet<string>();
+        for (var i = 0; i < 100; i++)
+        {
+            var result = _service.SelectByWeight(versions);
+            selectedVersions.Add(result.Version);
+        }
+
+        Assert.Contains("v1", selectedVersions);
+        Assert.Contains("v2", selectedVersions);
+    }
 }

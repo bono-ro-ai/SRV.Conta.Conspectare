@@ -13,7 +13,6 @@ public class PromptService : IPromptService
 
     private readonly ConcurrentDictionary<string, (IList<PromptVersion> Versions, DateTime LoadedAt)> _cache = new();
     private readonly ILogger<PromptService> _logger;
-    private readonly Random _random = new();
 
     public PromptService(ILogger<PromptService> logger)
     {
@@ -59,7 +58,7 @@ public class PromptService : IPromptService
         }
     }
 
-    private PromptVersion SelectByWeight(IList<PromptVersion> versions)
+    internal PromptVersion SelectByWeight(IList<PromptVersion> versions)
     {
         if (versions.Count == 1)
             return versions[0];
@@ -68,7 +67,10 @@ public class PromptService : IPromptService
         for (var i = 0; i < versions.Count; i++)
             totalWeight += versions[i].TrafficWeight;
 
-        var roll = _random.Next(totalWeight);
+        if (totalWeight == 0)
+            return versions[0];
+
+        var roll = Random.Shared.Next(totalWeight);
         var cumulative = 0;
 
         for (var i = 0; i < versions.Count; i++)
