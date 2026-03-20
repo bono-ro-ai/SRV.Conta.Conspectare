@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
 using Conspectare.Infrastructure.Llm.Gemini;
+using Conspectare.Services.Observability;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -47,7 +48,8 @@ public class GeminiApiClientTests
         var httpClient = new HttpClient(handler);
         var options = Options.Create(settings);
         var logger = NullLogger<GeminiApiClient>.Instance;
-        return new GeminiApiClient(httpClient, options, logger);
+        var metrics = new ConspectareMetrics();
+        return new GeminiApiClient(httpClient, options, logger, metrics);
     }
 
     private static string BuildTriageResponse(

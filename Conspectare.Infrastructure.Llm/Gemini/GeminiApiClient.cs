@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
+using Conspectare.Services.Observability;
 using Conspectare.Services.Processors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,14 +22,17 @@ public class GeminiApiClient : ILlmApiClient
     private readonly HttpClient _httpClient;
     private readonly GeminiApiSettings _settings;
     private readonly ILogger<GeminiApiClient> _logger;
+    private readonly ConspectareMetrics _metrics;
     public GeminiApiClient(
         HttpClient httpClient,
         IOptions<GeminiApiSettings> options,
-        ILogger<GeminiApiClient> logger)
+        ILogger<GeminiApiClient> logger,
+        ConspectareMetrics metrics)
     {
         _httpClient = httpClient;
         _settings = options.Value;
         _logger = logger;
+        _metrics = metrics;
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
         _httpClient.DefaultRequestHeaders.Add("x-goog-api-key", _settings.ApiKey);
@@ -47,6 +51,11 @@ public class GeminiApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
         var (args, usage) = ParseFunctionCallResponse(response, "classify_document");
+        _metrics.RecordLlmCallDuration("gemini", "triage", sw.ElapsedMilliseconds);
+        if (usage.InputTokens.HasValue)
+            _metrics.RecordLlmTokens("gemini", "input", usage.InputTokens.Value);
+        if (usage.OutputTokens.HasValue)
+            _metrics.RecordLlmTokens("gemini", "output", usage.OutputTokens.Value);
         var documentType = args["document_type"]?.GetValue<string>() ?? "unknown";
         var confidence = args["confidence"]?.GetValue<decimal>() ?? 0m;
         var isAccountingRelevant = args["is_accounting_relevant"]?.GetValue<bool>() ?? false;
@@ -74,6 +83,11 @@ public class GeminiApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
         var (args, usage) = ParseFunctionCallResponse(response, "extract_invoice_data");
+        _metrics.RecordLlmCallDuration("gemini", "extraction", sw.ElapsedMilliseconds);
+        if (usage.InputTokens.HasValue)
+            _metrics.RecordLlmTokens("gemini", "input", usage.InputTokens.Value);
+        if (usage.OutputTokens.HasValue)
+            _metrics.RecordLlmTokens("gemini", "output", usage.OutputTokens.Value);
         var outputJson = args.ToJsonString(JsonOptions);
         var schemaVersion = "1.0.0";
         var reviewFlags = new List<ReviewFlagInfo>();

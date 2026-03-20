@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
 using Conspectare.Infrastructure.Llm.Claude;
+using Conspectare.Services.Observability;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -48,7 +49,8 @@ public class ClaudeApiClientTests
         var httpClient = new HttpClient(handler);
         var options = Options.Create(settings);
         var logger = NullLogger<ClaudeApiClient>.Instance;
-        return new ClaudeApiClient(httpClient, options, logger);
+        var metrics = new ConspectareMetrics();
+        return new ClaudeApiClient(httpClient, options, logger, metrics);
     }
 
     private static string BuildTriageResponse(

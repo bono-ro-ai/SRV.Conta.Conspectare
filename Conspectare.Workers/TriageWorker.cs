@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
 using Conspectare.Services;
 using Conspectare.Services.Commands;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
+using Conspectare.Services.Observability;
 using Conspectare.Services.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -27,22 +29,30 @@ public class TriageWorker : DistributedBackgroundService
         var processorRegistry = scope.ServiceProvider.GetRequiredService<IProcessorRegistry>();
         var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
         var workflow = scope.ServiceProvider.GetRequiredService<DocumentStatusWorkflow>();
+        var metrics = scope.ServiceProvider.GetRequiredService<ConspectareMetrics>();
         var pendingDocs = new FindPendingTriageDocumentsQuery(BatchSize).Execute();
         if (pendingDocs.Count == 0)
             return 0;
         var claimedDocs = new ClaimDocumentsForTriageCommand(pendingDocs).Execute();
         if (claimedDocs.Count == 0)
             return 0;
+        foreach (var doc in claimedDocs)
+            metrics.RecordDocumentIngested(doc.TenantId, doc.InputFormat ?? "unknown");
         var processedCount = 0;
         foreach (var doc in claimedDocs)
         {
+            var sw = Stopwatch.StartNew();
             try
             {
                 await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, logger, ct);
+                sw.Stop();
+                metrics.RecordProcessingDuration("triage", sw.ElapsedMilliseconds);
                 processedCount++;
             }
             catch (Exception ex)
             {
+                sw.Stop();
+                metrics.RecordProcessingDuration("triage", sw.ElapsedMilliseconds);
                 logger.LogError(ex,
                     "TriageWorker: failed to triage document {DocumentId}", doc.Id);
             }
