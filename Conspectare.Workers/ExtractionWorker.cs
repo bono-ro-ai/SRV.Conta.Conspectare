@@ -4,24 +4,29 @@ using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
 using Conspectare.Services;
 using Conspectare.Services.Commands;
+using Conspectare.Services.Extraction;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
 using Conspectare.Services.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 namespace Conspectare.Workers;
 public class ExtractionWorker : DistributedBackgroundService
 {
     private const int BatchSize = 5;
     protected override string JobName => "extraction_worker";
     protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
+    private readonly MultiModelSettings _multiModelSettings;
     public ExtractionWorker(
         IDistributedLock distributedLock,
         IServiceScopeFactory scopeFactory,
+        IOptions<MultiModelSettings> multiModelSettings,
         ILogger<ExtractionWorker> logger)
         : base(distributedLock, scopeFactory, logger)
     {
+        _multiModelSettings = multiModelSettings.Value;
     }
     protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
     {
@@ -43,7 +48,15 @@ public class ExtractionWorker : DistributedBackgroundService
             var sw = Stopwatch.StartNew();
             try
             {
-                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, vatValidationService, metrics, logger, ct);
+                if (_multiModelSettings.Enabled)
+                {
+                    var multiModelService = scope.ServiceProvider.GetRequiredService<MultiModelExtractionService>();
+                    await ProcessDocumentMultiModelAsync(doc, multiModelService, storageService, workflow, vatValidationService, metrics, logger, ct);
+                }
+                else
+                {
+                    await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, vatValidationService, metrics, logger, ct);
+                }
                 sw.Stop();
                 metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
                 processedCount++;
@@ -168,6 +181,139 @@ public class ExtractionWorker : DistributedBackgroundService
             "ExtractionWorker: document {DocumentId} extracted -> {NextStatus} " +
             "(schema={SchemaVersion}, flags={FlagCount})",
             doc.Id, nextStatus, result.SchemaVersion, result.ReviewFlags?.Count ?? 0);
+        try
+        {
+            doc.CanonicalOutput = canonicalOutput;
+            await vatValidationService.ValidateDocumentAsync(doc, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "ExtractionWorker: VAT validation failed for document {DocumentId}, continuing",
+                doc.Id);
+        }
+    }
+    private static async Task ProcessDocumentMultiModelAsync(
+        Document doc,
+        MultiModelExtractionService multiModelService,
+        IStorageService storageService,
+        DocumentStatusWorkflow workflow,
+        VatValidationService vatValidationService,
+        ConspectareMetrics metrics,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        var utcNow = DateTime.UtcNow;
+        ConsensusResult consensus;
+        byte[] rawFileBytes;
+        try
+        {
+            await using var rawFileStream = await storageService.DownloadAsync(doc.RawFileS3Key, ct);
+            using var ms = new MemoryStream();
+            await rawFileStream.CopyToAsync(ms, ct);
+            rawFileBytes = ms.ToArray();
+            consensus = await multiModelService.ExtractAsync(doc, rawFileBytes, ct);
+        }
+        catch (Exception ex)
+        {
+            HandleExtractionError(doc, workflow, metrics, ex, utcNow, logger);
+            return;
+        }
+        var winningResult = consensus.WinningResult;
+        var hasReviewFlags = winningResult.ReviewFlags is { Count: > 0 };
+        var nextStatus = hasReviewFlags
+            ? DocumentStatus.ReviewRequired
+            : DocumentStatus.Completed;
+        if (!workflow.CanTransition(DocumentStatus.Extracting, nextStatus))
+        {
+            logger.LogError(
+                "ExtractionWorker: invalid transition from {From} to {To} for document {DocumentId}",
+                DocumentStatus.Extracting, nextStatus, doc.Id);
+            return;
+        }
+        doc.Status = nextStatus;
+        doc.UpdatedAt = utcNow;
+        if (nextStatus == DocumentStatus.Completed)
+            doc.CompletedAt = utcNow;
+        var canonicalOutput = new CanonicalOutput
+        {
+            TenantId = doc.TenantId,
+            SchemaVersion = winningResult.SchemaVersion,
+            OutputJson = winningResult.OutputJson,
+            ConsensusStrategy = consensus.StrategyUsed,
+            WinningModelId = winningResult.ModelId,
+            CreatedAt = utcNow
+        };
+        TryDenormalizeFields(canonicalOutput, winningResult.OutputJson);
+        var attempts = new List<ExtractionAttempt>();
+        var artifacts = new List<DocumentArtifact>();
+        foreach (var (providerKey, result) in consensus.AllResults)
+        {
+            var artifactS3Key = $"tenants/{doc.TenantId}/documents/{doc.Id}/llm_extraction_response_{providerKey}.json";
+            var responseBytes = Encoding.UTF8.GetBytes(result.OutputJson);
+            using var responseStream = new MemoryStream(responseBytes);
+            await storageService.UploadAsync(artifactS3Key, responseStream, "application/json", ct);
+            artifacts.Add(new DocumentArtifact
+            {
+                TenantId = doc.TenantId,
+                ArtifactType = ArtifactType.LlmExtractionResponse,
+                S3Key = artifactS3Key,
+                ContentType = "application/json",
+                SizeBytes = responseBytes.Length,
+                RetentionDays = 90,
+                CreatedAt = utcNow
+            });
+            attempts.Add(new ExtractionAttempt
+            {
+                TenantId = doc.TenantId,
+                AttemptNumber = doc.RetryCount + 1,
+                Phase = "extraction",
+                ModelId = result.ModelId,
+                PromptVersion = result.PromptVersion,
+                ProviderKey = providerKey,
+                Status = providerKey == consensus.WinningProviderKey ? "completed" : "completed_non_winner",
+                InputTokens = result.InputTokens,
+                OutputTokens = result.OutputTokens,
+                LatencyMs = result.LatencyMs,
+                CreatedAt = utcNow,
+                CompletedAt = utcNow
+            });
+        }
+        var statusDetails = hasReviewFlags
+            ? $"Multi-model extraction completed with {winningResult.ReviewFlags!.Count} review flag(s) (strategy={consensus.StrategyUsed}, winner={consensus.WinningProviderKey})"
+            : $"Multi-model extraction completed successfully (strategy={consensus.StrategyUsed}, winner={consensus.WinningProviderKey})";
+        var statusEvent = new DocumentEvent
+        {
+            TenantId = doc.TenantId,
+            EventType = "status_change",
+            FromStatus = DocumentStatus.Extracting,
+            ToStatus = nextStatus,
+            Details = statusDetails,
+            CreatedAt = utcNow
+        };
+        IList<ReviewFlag> reviewFlags = null;
+        if (hasReviewFlags)
+        {
+            reviewFlags = winningResult.ReviewFlags!.Select(f => new ReviewFlag
+            {
+                TenantId = doc.TenantId,
+                FlagType = f.FlagType,
+                Severity = f.Severity,
+                Message = f.Message,
+                IsResolved = false,
+                CreatedAt = utcNow
+            }).ToList<ReviewFlag>();
+        }
+        new SaveMultiModelExtractionResultCommand(doc, canonicalOutput, attempts, statusEvent, artifacts, reviewFlags).Execute();
+        if (nextStatus == DocumentStatus.Completed)
+            metrics.RecordDocumentCompleted("extraction");
+        else if (nextStatus == DocumentStatus.ReviewRequired)
+            metrics.RecordDocumentCompleted("extraction_review_required");
+        EnqueueWebhookIfNeeded(doc, logger);
+        logger.LogInformation(
+            "ExtractionWorker: document {DocumentId} multi-model extracted -> {NextStatus} " +
+            "(strategy={Strategy}, winner={Winner}, providers={ProviderCount})",
+            doc.Id, nextStatus, consensus.StrategyUsed, consensus.WinningProviderKey, consensus.AllResults.Count);
         try
         {
             doc.CanonicalOutput = canonicalOutput;

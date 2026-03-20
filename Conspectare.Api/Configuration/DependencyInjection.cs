@@ -8,7 +8,9 @@ using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services;
 using Conspectare.Services.ExternalIntegrations.Anaf;
+using Conspectare.Services.Extraction;
 using Conspectare.Services.Interfaces;
+using Conspectare.Services.Models;
 using Conspectare.Services.Processors;
 using Conspectare.Services.Observability;
 using Conspectare.Workers;
@@ -67,6 +69,23 @@ internal static class DependencyInjection
                 services.AddHttpClient<ILlmApiClient, ClaudeApiClient>();
                 break;
         }
+
+        services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
+        services.Configure<GeminiApiSettings>(config.GetSection("Gemini"));
+        services.AddHttpClient<ClaudeApiClient>();
+        services.AddHttpClient<GeminiApiClient>();
+        services.AddSingleton<ILlmClientFactory>(sp =>
+        {
+            var clients = new Dictionary<string, ILlmApiClient>
+            {
+                ["claude"] = sp.GetRequiredService<ClaudeApiClient>(),
+                ["gemini"] = sp.GetRequiredService<GeminiApiClient>()
+            };
+            return new LlmClientFactory(clients);
+        });
+        services.Configure<MultiModelSettings>(config.GetSection("Llm:MultiModel"));
+        services.AddSingleton<IConsensusStrategy, HighestConfidenceStrategy>();
+        services.AddScoped<MultiModelExtractionService>();
 
         services.Configure<AnafVatValidationSettings>(config.GetSection("Anaf"));
         services.AddHttpClient<IAnafVatValidationClient, AnafVatValidationClient>();

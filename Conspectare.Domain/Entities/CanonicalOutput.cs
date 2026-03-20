@@ -15,6 +15,8 @@ public class CanonicalOutput
     public virtual string Currency { get; set; }
     public virtual decimal? TotalAmount { get; set; }
     public virtual decimal? VatAmount { get; set; }
+    public virtual string ConsensusStrategy { get; set; }
+    public virtual string WinningModelId { get; set; }
     public virtual DateTime CreatedAt { get; set; }
 
     public virtual Document Document { get; set; }
