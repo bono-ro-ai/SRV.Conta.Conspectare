@@ -27,6 +27,7 @@ public class ExtractionWorker : DistributedBackgroundService
         var processorRegistry = scope.ServiceProvider.GetRequiredService<IProcessorRegistry>();
         var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
         var workflow = scope.ServiceProvider.GetRequiredService<DocumentStatusWorkflow>();
+        var vatValidationService = scope.ServiceProvider.GetRequiredService<VatValidationService>();
         var pendingDocs = new FindPendingExtractionDocumentsQuery(BatchSize).Execute();
         if (pendingDocs.Count == 0)
             return 0;
@@ -38,7 +39,7 @@ public class ExtractionWorker : DistributedBackgroundService
         {
             try
             {
-                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, logger, ct);
+                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, vatValidationService, logger, ct);
                 processedCount++;
             }
             catch (Exception ex)
@@ -54,6 +55,7 @@ public class ExtractionWorker : DistributedBackgroundService
         IProcessorRegistry processorRegistry,
         IStorageService storageService,
         DocumentStatusWorkflow workflow,
+        VatValidationService vatValidationService,
         ILogger logger,
         CancellationToken ct)
     {
@@ -151,6 +153,17 @@ public class ExtractionWorker : DistributedBackgroundService
             "ExtractionWorker: document {DocumentId} extracted -> {NextStatus} " +
             "(schema={SchemaVersion}, flags={FlagCount})",
             doc.Id, nextStatus, result.SchemaVersion, result.ReviewFlags?.Count ?? 0);
+        try
+        {
+            doc.CanonicalOutput = canonicalOutput;
+            await vatValidationService.ValidateDocumentAsync(doc, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "ExtractionWorker: VAT validation failed for document {DocumentId}, continuing",
+                doc.Id);
+        }
     }
     private static void HandleExtractionError(
         Document doc,

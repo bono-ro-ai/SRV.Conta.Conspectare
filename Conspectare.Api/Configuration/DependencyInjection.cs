@@ -7,6 +7,7 @@ using Conspectare.Infrastructure.Mappings;
 using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services;
+using Conspectare.Services.ExternalIntegrations.Anaf;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Processors;
 using Conspectare.Workers;
@@ -58,6 +59,10 @@ internal static class DependencyInjection
                 services.AddHttpClient<ILlmApiClient, ClaudeApiClient>();
                 break;
         }
+
+        services.Configure<AnafVatValidationSettings>(config.GetSection("Anaf"));
+        services.AddHttpClient<IAnafVatValidationClient, AnafVatValidationClient>();
+        services.AddScoped<VatValidationService>();
 
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
