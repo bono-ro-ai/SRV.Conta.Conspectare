@@ -92,7 +92,7 @@ public class ClaudeApiClient : ILlmApiClient
         if (usage.OutputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "output", usage.OutputTokens.Value);
         var outputJson = toolInput.ToJsonString(JsonOptions);
-        var schemaVersion = "1.0.0";
+        var schemaVersion = "2.0.0";
         var reviewFlags = new List<ReviewFlagInfo>();
         if (toolInput["review_flags"] is JsonArray flagsArray)
         {
@@ -349,9 +349,13 @@ public class ClaudeApiClient : ILlmApiClient
                             }
                         }
                     },
-                    ["subtotal"] = new JsonObject { ["type"] = "number" },
+                    ["tax_exclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Total excluding VAT (total fără TVA)" },
                     ["total_vat"] = new JsonObject { ["type"] = "number" },
-                    ["total"] = new JsonObject { ["type"] = "number" },
+                    ["tax_inclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Grand total including VAT (total cu TVA / total de plată)" },
+                    ["discount"] = new JsonObject { ["type"] = "number", ["description"] = "Total discount amount if any" },
+                    ["tax_note"] = new JsonObject { ["type"] = "string", ["description"] = "VAT notes or mentions (e.g., 'taxare inversă', 'scutit TVA')" },
+                    ["tax_category"] = new JsonObject { ["type"] = "string", ["description"] = "VAT category: S (standard), AE (reverse charge), E (exempt), Z (zero), O (out of scope)" },
+                    ["swift_bic"] = new JsonObject { ["type"] = "string", ["description"] = "SWIFT/BIC code of supplier bank" },
                     ["payment_method"] = new JsonObject { ["type"] = "string" },
                     ["notes"] = new JsonObject { ["type"] = "string" },
                     ["review_flags"] = new JsonObject
@@ -369,7 +373,7 @@ public class ClaudeApiClient : ILlmApiClient
                         }
                     }
                 },
-                ["required"] = new JsonArray("invoice_number", "invoice_date", "currency", "line_items", "total")
+                ["required"] = new JsonArray("invoice_number", "invoice_date", "currency", "line_items", "tax_inclusive_amount")
             }
         };
     }

@@ -276,7 +276,7 @@ public class EFacturaXmlProcessorTests
         var result = await _processor.ExtractAsync(CreateTestDocument(), stream, CancellationToken.None);
 
         Assert.NotNull(result.OutputJson);
-        Assert.Equal("1.0.0", result.SchemaVersion);
+        Assert.Equal("2.0.0", result.SchemaVersion);
         Assert.Empty(result.ReviewFlags);
 
         var doc = JsonDocument.Parse(result.OutputJson);
@@ -362,9 +362,9 @@ public class EFacturaXmlProcessorTests
         var doc = JsonDocument.Parse(result.OutputJson);
         var totals = doc.RootElement.GetProperty("totals");
 
-        Assert.Equal(100.00m, totals.GetProperty("subtotal").GetDecimal());
+        Assert.Equal(100.00m, totals.GetProperty("tax_exclusive_amount").GetDecimal());
         Assert.Equal(19.00m, totals.GetProperty("vat_amount").GetDecimal());
-        Assert.Equal(119.00m, totals.GetProperty("total").GetDecimal());
+        Assert.Equal(119.00m, totals.GetProperty("tax_inclusive_amount").GetDecimal());
 
         Assert.Equal(119.00m, doc.RootElement.GetProperty("total_amount").GetDecimal());
         Assert.Equal(19.00m, doc.RootElement.GetProperty("vat_amount").GetDecimal());
@@ -437,7 +437,7 @@ public class EFacturaXmlProcessorTests
         Assert.Equal(1m, lineItems[0].GetProperty("quantity").GetDecimal());
 
         var totals = root.GetProperty("totals");
-        Assert.Equal(50.00m, totals.GetProperty("subtotal").GetDecimal());
-        Assert.Equal(59.50m, totals.GetProperty("total").GetDecimal());
+        Assert.Equal(50.00m, totals.GetProperty("tax_exclusive_amount").GetDecimal());
+        Assert.Equal(59.50m, totals.GetProperty("tax_inclusive_amount").GetDecimal());
     }
 }

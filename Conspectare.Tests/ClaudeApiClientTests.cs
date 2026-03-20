@@ -138,9 +138,9 @@ public class ClaudeApiClientTests
                                 ["line_total"] = 1190
                             }
                         },
-                        ["subtotal"] = 1000,
+                        ["tax_exclusive_amount"] = 1000,
                         ["total_vat"] = 190,
-                        ["total"] = 1190,
+                        ["tax_inclusive_amount"] = 1190,
                         ["review_flags"] = new JsonArray
                         {
                             new JsonObject
@@ -229,7 +229,7 @@ public class ClaudeApiClientTests
         var result = await client.ExtractAsync(doc, stream, "invoice", "test prompt", "extraction_v1.0.0");
 
         Assert.Contains("FAC-2024-001", result.OutputJson);
-        Assert.Equal("1.0.0", result.SchemaVersion);
+        Assert.Equal("2.0.0", result.SchemaVersion);
         Assert.Equal("claude-sonnet-4-20250514", result.ModelId);
         Assert.Equal("extraction_v1.0.0", result.PromptVersion);
         Assert.Equal(1000, result.InputTokens);
