@@ -26,6 +26,7 @@ public class ExtractionAttemptMap : ClassMap<ExtractionAttempt>
         Map(x => x.ResponseArtifactId).Column("response_artifact_id");
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();
         Map(x => x.CompletedAt).Column("completed_at");
+        Map(x => x.ProviderKey).Column("provider_key");
 
         Map(x => x.DocumentId).Column("document_id").Not.Insert().Not.Update();
         References(x => x.Document).Column("document_id").Not.Nullable();

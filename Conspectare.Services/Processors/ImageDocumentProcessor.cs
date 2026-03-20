@@ -34,12 +34,13 @@ public class ImageDocumentProcessor : IDocumentProcessor
             ct);
     }
 
-    public async Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, CancellationToken ct)
+    public async Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, CancellationToken ct) =>
+        await ExtractAsync(doc, rawFile, _llmApiClient, ct);
+    public async Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, ILlmApiClient llmClient, CancellationToken ct)
     {
-        _logger.LogInformation("Extracting image document {DocumentId} via Claude vision", doc.Id);
-
+        _logger.LogInformation("Extracting image document {DocumentId} via LLM", doc.Id);
         var (promptText, promptVersion) = _promptService.GetPrompt("extraction", doc.DocumentType);
-        return await _llmApiClient.ExtractAsync(
+        return await llmClient.ExtractAsync(
             doc,
             rawFile,
             doc.DocumentType,

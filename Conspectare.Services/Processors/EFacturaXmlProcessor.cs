@@ -70,6 +70,8 @@ public class EFacturaXmlProcessor : IDocumentProcessor
             LatencyMs: null));
     }
 
+    public Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, ILlmApiClient llmClient, CancellationToken ct) =>
+        ExtractAsync(doc, rawFile, ct);
     public Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, CancellationToken ct)
     {
         var xDoc = XDocument.Load(rawFile);

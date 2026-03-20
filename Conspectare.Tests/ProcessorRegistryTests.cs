@@ -83,5 +83,7 @@ public class ProcessorRegistryTests
 
         public Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, CancellationToken ct) =>
             throw new NotImplementedException();
+        public Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, ILlmApiClient llmClient, CancellationToken ct) =>
+            throw new NotImplementedException();
     }
 }

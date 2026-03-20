@@ -23,6 +23,8 @@ public class CanonicalOutputMap : ClassMap<CanonicalOutput>
         Map(x => x.Currency).Column("currency");
         Map(x => x.TotalAmount).Column("total_amount").Precision(15).Scale(2);
         Map(x => x.VatAmount).Column("vat_amount").Precision(15).Scale(2);
+        Map(x => x.ConsensusStrategy).Column("consensus_strategy");
+        Map(x => x.WinningModelId).Column("winning_model_id");
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();
 
         Map(x => x.DocumentId).Column("document_id").Not.Insert().Not.Update();
