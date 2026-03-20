@@ -163,6 +163,7 @@ public class ExtractionWorker : DistributedBackgroundService
             metrics.RecordDocumentCompleted("extraction");
         else if (nextStatus == DocumentStatus.ReviewRequired)
             metrics.RecordDocumentCompleted("extraction_review_required");
+        EnqueueWebhookIfNeeded(doc, logger);
         logger.LogInformation(
             "ExtractionWorker: document {DocumentId} extracted -> {NextStatus} " +
             "(schema={SchemaVersion}, flags={FlagCount})",
@@ -227,10 +228,25 @@ public class ExtractionWorker : DistributedBackgroundService
             CreatedAt = utcNow
         };
         new SaveTriageResultCommand(doc, attempt, statusEvent).Execute();
+        if (nextStatus == DocumentStatus.Failed)
+            EnqueueWebhookIfNeeded(doc, logger);
         logger.LogWarning(ex,
             "ExtractionWorker: document {DocumentId} extraction failed -> {NextStatus} " +
             "(retry {RetryCount}/{MaxRetries})",
             doc.Id, nextStatus, doc.RetryCount, doc.MaxRetries);
+    }
+    private static void EnqueueWebhookIfNeeded(Document doc, ILogger logger)
+    {
+        try
+        {
+            var client = new LoadApiClientByIdQuery(doc.TenantId).Execute();
+            WebhookEnqueuer.EnqueueIfNeeded(doc, client, DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "ExtractionWorker: failed to enqueue webhook for document {DocumentId}", doc.Id);
+        }
     }
     private static void TryDenormalizeFields(CanonicalOutput output, string outputJson)
     {

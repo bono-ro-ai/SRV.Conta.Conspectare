@@ -121,6 +121,19 @@ public class TriageWorker : DistributedBackgroundService
             metrics.RecordDocumentCompleted("triage_review_required");
         else if (nextStatus == DocumentStatus.PendingExtraction)
             metrics.RecordDocumentCompleted("triage");
+        if (nextStatus is DocumentStatus.Rejected or DocumentStatus.ReviewRequired)
+        {
+            try
+            {
+                var client = new LoadApiClientByIdQuery(doc.TenantId).Execute();
+                WebhookEnqueuer.EnqueueIfNeeded(doc, client, utcNow);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "TriageWorker: failed to enqueue webhook for document {DocumentId}", doc.Id);
+            }
+        }
         logger.LogInformation(
             "TriageWorker: document {DocumentId} triaged -> {NextStatus} " +
             "(type={DocumentType}, confidence={Confidence:F2})",
