@@ -38,6 +38,16 @@ public class AnafVatValidationClient : IAnafVatValidationClient
                 ValidationError: $"CUI '{cui}' is not a valid numeric identifier");
         }
 
+        if (numericCui.Length < 2 || numericCui.Length > 10)
+        {
+            return new AnafValidationResult(
+                IsValid: false,
+                Cui: cui,
+                CompanyName: null,
+                IsInactive: false,
+                ValidationError: $"CUI '{cui}' has invalid length ({numericCui.Length} digits) — Romanian CUIs must be 2-10 digits");
+        }
+
         var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
         var requestBody = new JsonArray
         {
@@ -83,7 +93,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
                     Cui: cui,
                     CompanyName: null,
                     IsInactive: false,
-                    ValidationError: $"ANAF API request failed: {ex.Message}");
+                    ValidationError: "ANAF API request failed");
             }
 
             var delaySeconds = attempt switch { 0 => 2, 1 => 5, _ => 10 };

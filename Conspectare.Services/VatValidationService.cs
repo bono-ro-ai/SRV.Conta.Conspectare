@@ -60,7 +60,7 @@ public class VatValidationService
                     Cui: supplierCui,
                     CompanyName: null,
                     IsInactive: false,
-                    ValidationError: $"ANAF validation unavailable: {ex.Message}")));
+                    ValidationError: "ANAF validation unavailable")));
             }
         }
 
@@ -81,7 +81,7 @@ public class VatValidationService
                     Cui: customerCui,
                     CompanyName: null,
                     IsInactive: false,
-                    ValidationError: $"ANAF validation unavailable: {ex.Message}")));
+                    ValidationError: "ANAF validation unavailable")));
             }
         }
 

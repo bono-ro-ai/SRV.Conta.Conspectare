@@ -166,6 +166,20 @@ public class AnafVatValidationClientTests
         Assert.Contains("malformed", result.ValidationError);
     }
 
+    [Theory]
+    [InlineData("1")]
+    [InlineData("12345678901")]
+    public async Task ValidateCui_InvalidLengthCui_ReturnsInvalid(string cui)
+    {
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, BuildValidActiveResponse());
+        var client = CreateClient(handler);
+
+        var result = await client.ValidateCuiAsync(cui, CancellationToken.None);
+
+        Assert.False(result.IsValid);
+        Assert.Contains("invalid length", result.ValidationError);
+    }
+
     [Fact]
     public async Task ValidateCui_NonNumericCui_ReturnsInvalid()
     {

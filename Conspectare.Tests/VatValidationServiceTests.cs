@@ -117,13 +117,7 @@ public class VatValidationServiceTests
         var service = CreateService(mockClient);
         var doc = CreateTestDocument("RO12345678", null);
 
-        try
-        {
-            await service.ValidateDocumentAsync(doc, CancellationToken.None);
-        }
-        catch
-        {
-        }
+        await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
         mockClient.Verify(
             c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()), Times.Once);
@@ -146,13 +140,7 @@ public class VatValidationServiceTests
         var service = CreateService(mockClient);
         var doc = CreateTestDocument("RO12345678", "RO87654321");
 
-        try
-        {
-            await service.ValidateDocumentAsync(doc, CancellationToken.None);
-        }
-        catch
-        {
-        }
+        await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
         mockClient.Verify(
             c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()), Times.Once);
@@ -179,13 +167,7 @@ public class VatValidationServiceTests
         var service = CreateService(mockClient);
         var doc = CreateTestDocument("RO12345678", "RO87654321");
 
-        try
-        {
-            await service.ValidateDocumentAsync(doc, CancellationToken.None);
-        }
-        catch
-        {
-        }
+        await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
         mockClient.Verify(
             c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()), Times.Once);

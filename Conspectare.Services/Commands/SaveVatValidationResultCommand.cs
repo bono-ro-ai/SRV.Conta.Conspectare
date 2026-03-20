@@ -41,7 +41,7 @@ public class SaveVatValidationResultCommand(
                 flagSummaries.Add($"{flagType}: {result.Cui}");
             }
 
-            if (result.IsValid && result.IsInactive)
+            else
             {
                 var flagType = role == "supplier"
                     ? "inactive_supplier_company"
