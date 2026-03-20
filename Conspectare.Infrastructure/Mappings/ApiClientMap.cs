@@ -15,6 +15,7 @@ public class ApiClientMap : ClassMap<ApiClient>
         Map(x => x.ApiKeyHash).Column("api_key_hash").Not.Nullable().Length(128);
         Map(x => x.ApiKeyPrefix).Column("api_key_prefix").Not.Nullable().Length(8);
         Map(x => x.IsActive).Column("is_active").Not.Nullable();
+        Map(x => x.IsAdmin).Column("is_admin").Not.Nullable();
         Map(x => x.RateLimitPerMin).Column("rate_limit_per_min").Not.Nullable();
         Map(x => x.MaxFileSizeMb).Column("max_file_size_mb").Not.Nullable();
         Map(x => x.WebhookUrl).Column("webhook_url").Length(500);

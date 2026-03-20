@@ -93,6 +93,7 @@ public class ApiKeyAuthMiddleware
         tenantContext.TenantId = apiClient.Id;
         tenantContext.ApiKeyPrefix = apiClient.ApiKeyPrefix;
         tenantContext.RateLimitPerMin = apiClient.RateLimitPerMin;
+        tenantContext.IsAdmin = apiClient.IsAdmin;
 
         await _next(context);
     }
