@@ -6,8 +6,8 @@ public static class PromptProvider
 {
     private const string ResourcePrefix = "Conspectare.Services.Prompts.";
     private const string TriageVersion = "triage_v1.0.0";
-    private const string ExtractionInvoiceVersion = "extraction_invoice_v1.0.0";
-    private const string ExtractionReceiptVersion = "extraction_receipt_v1.0.0";
+    private const string ExtractionInvoiceVersion = "extraction_invoice_v2.0.0";
+    private const string ExtractionReceiptVersion = "extraction_receipt_v2.0.0";
 
     private static readonly Lazy<string> TriagePromptCache = new(() => LoadResource($"{TriageVersion}.txt"));
     private static readonly Lazy<string> ExtractionInvoiceCache = new(() => LoadResource($"{ExtractionInvoiceVersion}.txt"));

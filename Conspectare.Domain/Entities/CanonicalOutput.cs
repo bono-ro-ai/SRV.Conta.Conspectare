@@ -13,8 +13,13 @@ public class CanonicalOutput
     public virtual string SupplierCui { get; set; }
     public virtual string CustomerCui { get; set; }
     public virtual string Currency { get; set; }
-    public virtual decimal? TotalAmount { get; set; }
+    public virtual decimal? TaxExclusiveAmount { get; set; }
+    public virtual decimal? TaxInclusiveAmount { get; set; }
     public virtual decimal? VatAmount { get; set; }
+    public virtual decimal? Discount { get; set; }
+    public virtual string TaxNote { get; set; }
+    public virtual string TaxCategory { get; set; }
+    public virtual string SwiftBic { get; set; }
     public virtual string ConsensusStrategy { get; set; }
     public virtual string WinningModelId { get; set; }
     public virtual DateTime CreatedAt { get; set; }

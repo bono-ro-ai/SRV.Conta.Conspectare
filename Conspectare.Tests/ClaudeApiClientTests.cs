@@ -138,9 +138,9 @@ public class ClaudeApiClientTests
                                 ["line_total"] = 1190
                             }
                         },
-                        ["subtotal"] = 1000,
+                        ["tax_exclusive_amount"] = 1000,
                         ["total_vat"] = 190,
-                        ["total"] = 1190,
+                        ["tax_inclusive_amount"] = 1190,
                         ["review_flags"] = new JsonArray
                         {
                             new JsonObject
