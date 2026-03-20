@@ -37,14 +37,14 @@ public class TriageWorker : DistributedBackgroundService
         if (claimedDocs.Count == 0)
             return 0;
         foreach (var doc in claimedDocs)
-            metrics.RecordDocumentIngested(doc.TenantId, doc.InputFormat ?? "unknown");
+            metrics.RecordDocumentIngested(doc.InputFormat ?? "unknown");
         var processedCount = 0;
         foreach (var doc in claimedDocs)
         {
             var sw = Stopwatch.StartNew();
             try
             {
-                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, logger, ct);
+                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, metrics, logger, ct);
                 sw.Stop();
                 metrics.RecordProcessingDuration("triage", sw.ElapsedMilliseconds);
                 processedCount++;
@@ -53,6 +53,7 @@ public class TriageWorker : DistributedBackgroundService
             {
                 sw.Stop();
                 metrics.RecordProcessingDuration("triage", sw.ElapsedMilliseconds);
+                metrics.RecordDocumentFailed("triage", "unhandled_error");
                 logger.LogError(ex,
                     "TriageWorker: failed to triage document {DocumentId}", doc.Id);
             }
@@ -64,6 +65,7 @@ public class TriageWorker : DistributedBackgroundService
         IProcessorRegistry processorRegistry,
         IStorageService storageService,
         DocumentStatusWorkflow workflow,
+        ConspectareMetrics metrics,
         ILogger logger,
         CancellationToken ct)
     {
@@ -113,6 +115,12 @@ public class TriageWorker : DistributedBackgroundService
             CreatedAt = utcNow
         };
         new SaveTriageResultCommand(doc, attempt, statusEvent).Execute();
+        if (nextStatus == DocumentStatus.Rejected)
+            metrics.RecordDocumentFailed("triage", "rejected");
+        else if (nextStatus == DocumentStatus.ReviewRequired)
+            metrics.RecordDocumentCompleted("triage_review_required");
+        else if (nextStatus == DocumentStatus.PendingExtraction)
+            metrics.RecordDocumentCompleted("triage");
         logger.LogInformation(
             "TriageWorker: document {DocumentId} triaged -> {NextStatus} " +
             "(type={DocumentType}, confidence={Confidence:F2})",

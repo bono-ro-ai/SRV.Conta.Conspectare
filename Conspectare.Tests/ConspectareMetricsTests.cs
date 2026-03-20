@@ -52,11 +52,10 @@ public class ConspectareMetricsTests
     public void RecordDocumentIngested_RecordsWithCorrectTags()
     {
         var recorded = CaptureCounter("conspectare.documents.ingested", () =>
-            _metrics.RecordDocumentIngested(42, "xml"));
+            _metrics.RecordDocumentIngested("xml"));
 
         Assert.NotNull(recorded);
         Assert.Equal(1, recorded.Value);
-        AssertTag(recorded.Tags, "tenant_id", (long)42);
         AssertTag(recorded.Tags, "input_format", "xml");
     }
 
@@ -64,11 +63,10 @@ public class ConspectareMetricsTests
     public void RecordDocumentCompleted_RecordsWithCorrectTags()
     {
         var recorded = CaptureCounter("conspectare.documents.completed", () =>
-            _metrics.RecordDocumentCompleted(10, "extraction"));
+            _metrics.RecordDocumentCompleted("extraction"));
 
         Assert.NotNull(recorded);
         Assert.Equal(1, recorded.Value);
-        AssertTag(recorded.Tags, "tenant_id", (long)10);
         AssertTag(recorded.Tags, "phase", "extraction");
     }
 
@@ -76,11 +74,10 @@ public class ConspectareMetricsTests
     public void RecordDocumentFailed_RecordsWithCorrectTags()
     {
         var recorded = CaptureCounter("conspectare.documents.failed", () =>
-            _metrics.RecordDocumentFailed(5, "extraction", "max_retries_exceeded"));
+            _metrics.RecordDocumentFailed("extraction", "max_retries_exceeded"));
 
         Assert.NotNull(recorded);
         Assert.Equal(1, recorded.Value);
-        AssertTag(recorded.Tags, "tenant_id", (long)5);
         AssertTag(recorded.Tags, "phase", "extraction");
         AssertTag(recorded.Tags, "reason", "max_retries_exceeded");
     }

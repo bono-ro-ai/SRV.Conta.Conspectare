@@ -1,6 +1,6 @@
 using System.Diagnostics.Metrics;
 namespace Conspectare.Services.Observability;
-public class ConspectareMetrics
+public class ConspectareMetrics : IDisposable
 {
     public const string MeterName = "Conspectare";
     private readonly Counter<long> _documentsIngested;
@@ -34,22 +34,24 @@ public class ConspectareMetrics
             "conspectare.llm.tokens",
             description: "Number of tokens consumed by LLM calls");
     }
-    public void RecordDocumentIngested(long tenantId, string inputFormat)
+    public void Dispose()
+    {
+        Meter.Dispose();
+        GC.SuppressFinalize(this);
+    }
+    public void RecordDocumentIngested(string inputFormat)
     {
         _documentsIngested.Add(1,
-            new KeyValuePair<string, object>("tenant_id", tenantId),
             new KeyValuePair<string, object>("input_format", inputFormat));
     }
-    public void RecordDocumentCompleted(long tenantId, string phase)
+    public void RecordDocumentCompleted(string phase)
     {
         _documentsCompleted.Add(1,
-            new KeyValuePair<string, object>("tenant_id", tenantId),
             new KeyValuePair<string, object>("phase", phase));
     }
-    public void RecordDocumentFailed(long tenantId, string phase, string reason)
+    public void RecordDocumentFailed(string phase, string reason)
     {
         _documentsFailed.Add(1,
-            new KeyValuePair<string, object>("tenant_id", tenantId),
             new KeyValuePair<string, object>("phase", phase),
             new KeyValuePair<string, object>("reason", reason));
     }

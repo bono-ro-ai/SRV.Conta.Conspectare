@@ -52,7 +52,7 @@ public class ExtractionWorker : DistributedBackgroundService
             {
                 sw.Stop();
                 metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
-                metrics.RecordDocumentFailed(doc.TenantId, "extraction", "unhandled_error");
+                metrics.RecordDocumentFailed("extraction", "unhandled_error");
                 logger.LogError(ex,
                     "ExtractionWorker: unhandled error for document {DocumentId}", doc.Id);
             }
@@ -160,7 +160,9 @@ public class ExtractionWorker : DistributedBackgroundService
         }
         new SaveExtractionResultCommand(doc, canonicalOutput, attempt, statusEvent, artifact, reviewFlags).Execute();
         if (nextStatus == DocumentStatus.Completed)
-            metrics.RecordDocumentCompleted(doc.TenantId, "extraction");
+            metrics.RecordDocumentCompleted("extraction");
+        else if (nextStatus == DocumentStatus.ReviewRequired)
+            metrics.RecordDocumentCompleted("extraction_review_required");
         logger.LogInformation(
             "ExtractionWorker: document {DocumentId} extracted -> {NextStatus} " +
             "(schema={SchemaVersion}, flags={FlagCount})",
@@ -192,7 +194,7 @@ public class ExtractionWorker : DistributedBackgroundService
             ? DocumentStatus.Failed
             : DocumentStatus.ExtractionFailed;
         if (nextStatus == DocumentStatus.Failed)
-            metrics.RecordDocumentFailed(doc.TenantId, "extraction", "max_retries_exceeded");
+            metrics.RecordDocumentFailed("extraction", "max_retries_exceeded");
         if (!workflow.CanTransition(DocumentStatus.Extracting, nextStatus))
         {
             logger.LogError(
