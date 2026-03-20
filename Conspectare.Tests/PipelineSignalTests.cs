@@ -46,23 +46,20 @@ public class PipelineSignalTests
     }
 
     [Fact]
-    public async Task Multiple_Signals_Accumulated()
+    public async Task Multiple_Signals_Coalesce_EdgeTriggered()
     {
         var signal = new PipelineSignal();
 
+        // Edge-triggered: multiple signals before any wait coalesce into one wake-up
         signal.Signal("triage");
         signal.Signal("triage");
         signal.Signal("triage");
 
         var r1 = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
         var r2 = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
-        var r3 = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
-        var r4 = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
 
-        Assert.True(r1);
-        Assert.True(r2);
-        Assert.True(r3);
-        Assert.False(r4); // No more signals accumulated
+        Assert.True(r1);   // First wait consumes the coalesced signal
+        Assert.False(r2);  // No more signals — edge-triggered, maxCount=1
     }
 
     [Fact]
