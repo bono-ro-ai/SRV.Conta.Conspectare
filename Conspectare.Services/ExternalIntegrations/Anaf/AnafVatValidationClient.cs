@@ -116,7 +116,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
             Encoding.UTF8,
             "application/json");
 
-        var response = await _httpClient.PostAsync("/api/v8/ws/tva", content, ct);
+        var response = await _httpClient.PostAsync("/api/v9/ws/tva", content, ct);
         response.EnsureSuccessStatusCode();
 
         var responseJson = await response.Content.ReadAsStringAsync(ct);
