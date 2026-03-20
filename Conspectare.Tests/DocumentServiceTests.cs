@@ -559,4 +559,185 @@ public class DocumentServiceTests
         Assert.Equal(400, result.StatusCode);
         Assert.Contains("Maximum retry count", result.Error);
     }
+
+    private Document CreateReviewRequiredDocument(ISession session, ApiClient tenant)
+    {
+        var utcNow = DateTime.UtcNow;
+        var doc = new Document
+        {
+            TenantId = tenant.Id,
+            Tenant = tenant,
+            FileName = "review.xml",
+            ContentType = "text/xml",
+            FileSizeBytes = 100,
+            InputFormat = InputFormat.XmlEfactura,
+            Status = DocumentStatus.ReviewRequired,
+            RetryCount = 0,
+            MaxRetries = 3,
+            RawFileS3Key = "test/raw/review.xml",
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        };
+
+        var canonicalOutput = new CanonicalOutput
+        {
+            TenantId = tenant.Id,
+            SchemaVersion = "1.0",
+            OutputJson = "{\"original\": true}",
+            CreatedAt = utcNow
+        };
+
+        var reviewFlag = new ReviewFlag
+        {
+            TenantId = tenant.Id,
+            FlagType = "confidence_low",
+            Severity = "warning",
+            Message = "Low extraction confidence",
+            IsResolved = false,
+            CreatedAt = utcNow
+        };
+
+        using var tx = session.BeginTransaction();
+        session.Save(doc);
+        canonicalOutput.Document = doc;
+        canonicalOutput.DocumentId = doc.Id;
+        session.Save(canonicalOutput);
+        reviewFlag.Document = doc;
+        reviewFlag.DocumentId = doc.Id;
+        session.Save(reviewFlag);
+        tx.Commit();
+
+        doc.CanonicalOutput = canonicalOutput;
+        doc.ReviewFlags = new List<ReviewFlag> { reviewFlag };
+
+        return doc;
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ConfirmAction_CompletesDocument()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var doc = CreateReviewRequiredDocument(setupSession, tenant);
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ResolveAsync(doc.Id, "confirm", null, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(DocumentStatus.Completed, result.Data.Status);
+        Assert.NotNull(result.Data.CompletedAt);
+        Assert.All(result.Data.ReviewFlags, f => Assert.True(f.IsResolved));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ProvideCorrected_UpdatesCanonicalOutput()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var doc = CreateReviewRequiredDocument(setupSession, tenant);
+        var service = CreateService(sharedFactory);
+
+        var correctedJson = "{\"corrected\": true}";
+        var result = await service.ResolveAsync(doc.Id, "provide_corrected", correctedJson, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(DocumentStatus.Completed, result.Data.Status);
+        Assert.NotNull(result.Data.CompletedAt);
+
+        using var verifySession = sharedFactory.OpenSession();
+        var updated = verifySession.Get<CanonicalOutput>(doc.CanonicalOutput.Id);
+        Assert.Equal(correctedJson, updated.OutputJson);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_RejectAction_RejectsDocument()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var doc = CreateReviewRequiredDocument(setupSession, tenant);
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ResolveAsync(doc.Id, "reject", null, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(DocumentStatus.Rejected, result.Data.Status);
+        Assert.Null(result.Data.CompletedAt);
+        Assert.All(result.Data.ReviewFlags, f => Assert.True(f.IsResolved));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_NonReviewRequiredDocument_ReturnsConflict()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var utcNow = DateTime.UtcNow;
+        var doc = new Document
+        {
+            TenantId = tenant.Id,
+            Tenant = tenant,
+            FileName = "pending.xml",
+            ContentType = "text/xml",
+            FileSizeBytes = 100,
+            InputFormat = InputFormat.XmlEfactura,
+            Status = DocumentStatus.PendingTriage,
+            RetryCount = 0,
+            MaxRetries = 3,
+            RawFileS3Key = "test/raw/pending.xml",
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow
+        };
+
+        using (var tx = setupSession.BeginTransaction())
+        {
+            setupSession.Save(doc);
+            tx.Commit();
+        }
+
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ResolveAsync(doc.Id, "confirm", null, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_ProvideCorrectedWithoutJson_ReturnsBadRequest()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ResolveAsync(1, "provide_corrected", null, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_NonExistentDocument_ReturnsNotFound()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var service = CreateService(sharedFactory);
+
+        var result = await service.ResolveAsync(999999, "confirm", null, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(404, result.StatusCode);
+    }
 }

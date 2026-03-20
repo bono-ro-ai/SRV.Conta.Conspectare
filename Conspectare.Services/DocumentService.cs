@@ -247,4 +247,60 @@ public class DocumentService : IDocumentService
 
         return OperationResult<Document>.Success(document);
     }
+
+    private static readonly HashSet<string> ValidResolveActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "confirm", "provide_corrected", "reject"
+    };
+
+    public async Task<OperationResult<Document>> ResolveAsync(long id, string action, string canonicalOutputJson, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(action) || !ValidResolveActions.Contains(action))
+            return OperationResult<Document>.BadRequest("Action must be one of: confirm, provide_corrected, reject.");
+
+        if (string.Equals(action, "provide_corrected", StringComparison.OrdinalIgnoreCase)
+            && string.IsNullOrWhiteSpace(canonicalOutputJson))
+            return OperationResult<Document>.BadRequest("canonicalOutputJson is required when action is 'provide_corrected'.");
+
+        var tenantId = _tenantContext.TenantId;
+
+        using var session = _sessionFactory.OpenSession();
+        var document = new LoadDocumentByIdQuery(tenantId, id)
+            .UseExternalSession(session)
+            .Execute();
+
+        if (document == null)
+            return OperationResult<Document>.NotFound($"Document with id {id} not found.");
+
+        if (document.Status != DocumentStatus.ReviewRequired)
+            return OperationResult<Document>.Conflict(
+                $"Cannot resolve document in status '{document.Status}'. Only documents in 'review_required' status can be resolved.");
+
+        var targetStatus = string.Equals(action, "reject", StringComparison.OrdinalIgnoreCase)
+            ? DocumentStatus.Rejected
+            : DocumentStatus.Completed;
+
+        var resolvedEvent = new DocumentEvent
+        {
+            TenantId = tenantId,
+            EventType = "resolved",
+            FromStatus = DocumentStatus.ReviewRequired,
+            ToStatus = targetStatus,
+            Details = $"Manual resolution: {action}",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        using var transaction = session.BeginTransaction();
+
+        new ResolveDocumentCommand(document, action, canonicalOutputJson, resolvedEvent)
+            .UseExternalSession(session)
+            .Execute();
+
+        await transaction.CommitAsync(ct);
+
+        _logger.LogInformation("Resolved document {DocumentId} for tenant {TenantId} with action '{Action}'",
+            document.Id, tenantId, action);
+
+        return OperationResult<Document>.Success(document);
+    }
 }
