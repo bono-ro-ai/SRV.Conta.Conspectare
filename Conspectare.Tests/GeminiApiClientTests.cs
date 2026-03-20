@@ -15,7 +15,7 @@ public class GeminiApiClientTests
     private static GeminiApiSettings DefaultSettings => new()
     {
         ApiKey = "test-gemini-key",
-        Model = "gemini-2.5-flash",
+        Model = "gemini-3.1-pro",
         MaxOutputTokens = 4096,
         BaseUrl = "https://generativelanguage.googleapis.com",
         TimeoutSeconds = 30,
@@ -187,7 +187,7 @@ public class GeminiApiClientTests
         Assert.Equal("invoice", result.DocumentType);
         Assert.Equal(0.95m, result.Confidence);
         Assert.True(result.IsAccountingRelevant);
-        Assert.Equal("gemini-2.5-flash", result.ModelId);
+        Assert.Equal("gemini-3.1-pro", result.ModelId);
         Assert.Equal("triage_v1.0.0", result.PromptVersion);
         Assert.Equal(500, result.InputTokens);
         Assert.Equal(50, result.OutputTokens);
@@ -241,7 +241,7 @@ public class GeminiApiClientTests
 
         Assert.Contains("FAC-2024-001", result.OutputJson);
         Assert.Equal("1.0.0", result.SchemaVersion);
-        Assert.Equal("gemini-2.5-flash", result.ModelId);
+        Assert.Equal("gemini-3.1-pro", result.ModelId);
         Assert.Equal("extraction_v1.0.0", result.PromptVersion);
         Assert.Equal(1000, result.InputTokens);
         Assert.Equal(200, result.OutputTokens);
@@ -352,7 +352,7 @@ public class GeminiApiClientTests
         var url = handler.RequestUrls[0];
         Assert.DoesNotContain("test-gemini-key", url);
         Assert.Contains("generateContent", url);
-        Assert.Contains("gemini-2.5-flash", url);
+        Assert.Contains("gemini-3.1-pro", url);
         Assert.True(handler.RequestHeaders.ContainsKey("x-goog-api-key"));
         Assert.Equal("test-gemini-key", handler.RequestHeaders["x-goog-api-key"]);
     }
