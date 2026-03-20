@@ -182,7 +182,7 @@ public class GeminiApiClientTests
         var doc = CreateTestDocument();
 
         using var stream = CreateTestStream();
-        var result = await client.TriageAsync(doc, stream, "triage_v1.0.0");
+        var result = await client.TriageAsync(doc, stream, "test prompt", "triage_v1.0.0");
 
         Assert.Equal("invoice", result.DocumentType);
         Assert.Equal(0.95m, result.Confidence);
@@ -203,7 +203,7 @@ public class GeminiApiClientTests
         var doc = CreateTestDocument("text/xml");
 
         using var stream = CreateTestStream("invoice test content");
-        await client.TriageAsync(doc, stream, "triage_v1.0.0");
+        await client.TriageAsync(doc, stream, "test prompt", "triage_v1.0.0");
 
         Assert.Single(handler.Requests);
         var requestBody = handler.Requests[0];
@@ -221,7 +221,7 @@ public class GeminiApiClientTests
 
         var imageBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0 };
         using var stream = new MemoryStream(imageBytes);
-        await client.TriageAsync(doc, stream, "triage_v1.0.0");
+        await client.TriageAsync(doc, stream, "test prompt", "triage_v1.0.0");
 
         Assert.Single(handler.Requests);
         var requestBody = handler.Requests[0];
@@ -237,7 +237,7 @@ public class GeminiApiClientTests
         var doc = CreateTestDocument();
 
         using var stream = CreateTestStream();
-        var result = await client.ExtractAsync(doc, stream, "invoice", "extraction_v1.0.0");
+        var result = await client.ExtractAsync(doc, stream, "invoice", "test prompt", "extraction_v1.0.0");
 
         Assert.Contains("FAC-2024-001", result.OutputJson);
         Assert.Equal("1.0.0", result.SchemaVersion);
@@ -331,7 +331,7 @@ public class GeminiApiClientTests
         var doc = CreateTestDocument();
 
         using var stream = CreateTestStream();
-        await client.TriageAsync(doc, stream, "triage_v1.0.0");
+        await client.TriageAsync(doc, stream, "test prompt", "triage_v1.0.0");
 
         var requestBody = handler.Requests[0];
         Assert.Contains("classify_document", requestBody);
@@ -347,7 +347,7 @@ public class GeminiApiClientTests
         var client = CreateClient(handler);
         var doc = CreateTestDocument();
         using var stream = CreateTestStream();
-        await client.TriageAsync(doc, stream, "triage_v1.0.0");
+        await client.TriageAsync(doc, stream, "test prompt", "triage_v1.0.0");
         Assert.Single(handler.RequestUrls);
         var url = handler.RequestUrls[0];
         Assert.DoesNotContain("test-gemini-key", url);
@@ -365,7 +365,7 @@ public class GeminiApiClientTests
         var doc = CreateTestDocument();
 
         using var stream = CreateTestStream();
-        await client.ExtractAsync(doc, stream, "invoice", "extraction_v1.0.0");
+        await client.ExtractAsync(doc, stream, "invoice", "test prompt", "extraction_v1.0.0");
 
         var requestBody = handler.Requests[0];
         Assert.Contains("invoice", requestBody);

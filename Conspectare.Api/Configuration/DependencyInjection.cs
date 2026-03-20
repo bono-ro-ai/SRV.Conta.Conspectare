@@ -72,6 +72,7 @@ internal static class DependencyInjection
         services.AddHttpClient<IAnafVatValidationClient, AnafVatValidationClient>();
         services.AddScoped<VatValidationService>();
 
+        services.AddSingleton<IPromptService, PromptService>();
         services.AddSingleton<DocumentStatusWorkflow>();
         services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
         services.AddScoped<IDocumentProcessor, ImageDocumentProcessor>();

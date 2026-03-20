@@ -12,12 +12,22 @@ namespace Conspectare.Tests;
 public class ImageDocumentProcessorTests
 {
     private readonly Mock<ILlmApiClient> _llmApiClientMock = new();
+    private readonly Mock<IPromptService> _promptServiceMock = new();
     private readonly Mock<ILogger<ImageDocumentProcessor>> _loggerMock = new();
     private readonly ImageDocumentProcessor _processor;
 
     public ImageDocumentProcessorTests()
     {
-        _processor = new ImageDocumentProcessor(_llmApiClientMock.Object, _loggerMock.Object);
+        _promptServiceMock
+            .Setup(p => p.GetPrompt("triage", null))
+            .Returns((PromptProvider.GetTriagePrompt(), PromptProvider.GetTriagePromptVersion()));
+        _promptServiceMock
+            .Setup(p => p.GetPrompt("extraction", "invoice"))
+            .Returns((PromptProvider.GetExtractionPrompt("invoice"), PromptProvider.GetExtractionPromptVersion("invoice")));
+        _promptServiceMock
+            .Setup(p => p.GetPrompt("extraction", "receipt"))
+            .Returns((PromptProvider.GetExtractionPrompt("receipt"), PromptProvider.GetExtractionPromptVersion("receipt")));
+        _processor = new ImageDocumentProcessor(_llmApiClientMock.Object, _promptServiceMock.Object, _loggerMock.Object);
     }
 
     private static Document CreateTestDocument(string inputFormat = null, string documentType = "invoice") => new()
@@ -62,6 +72,7 @@ public class ImageDocumentProcessorTests
             .Setup(c => c.TriageAsync(
                 doc,
                 stream,
+                PromptProvider.GetTriagePrompt(),
                 PromptProvider.GetTriagePromptVersion(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedResult);
@@ -72,6 +83,7 @@ public class ImageDocumentProcessorTests
         _llmApiClientMock.Verify(c => c.TriageAsync(
             doc,
             stream,
+            PromptProvider.GetTriagePrompt(),
             PromptProvider.GetTriagePromptVersion(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
@@ -97,6 +109,7 @@ public class ImageDocumentProcessorTests
                 doc,
                 stream,
                 "invoice",
+                PromptProvider.GetExtractionPrompt("invoice"),
                 PromptProvider.GetExtractionPromptVersion("invoice"),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(expectedResult);
@@ -108,6 +121,7 @@ public class ImageDocumentProcessorTests
             doc,
             stream,
             "invoice",
+            PromptProvider.GetExtractionPrompt("invoice"),
             PromptProvider.GetExtractionPromptVersion("invoice"),
             It.IsAny<CancellationToken>()), Times.Once);
     }

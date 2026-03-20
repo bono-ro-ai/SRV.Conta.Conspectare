@@ -8,7 +8,6 @@ using Conspectare.Domain.Entities;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
-using Conspectare.Services.Processors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 namespace Conspectare.Infrastructure.Llm.Claude;
@@ -40,14 +39,14 @@ public class ClaudeApiClient : ILlmApiClient
         _httpClient.DefaultRequestHeaders.Add("anthropic-version", AnthropicVersion);
     }
     public async Task<TriageResult> TriageAsync(
-        Document doc, Stream rawFile, string promptVersion, CancellationToken ct = default)
+        Document doc, Stream rawFile, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var contentBlocks = await BuildContentBlocksAsync(doc, rawFile, ct);
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
-            ["text"] = PromptProvider.GetTriagePrompt()
+            ["text"] = promptText
         });
         var tool = BuildTriageTool();
         var requestBody = BuildRequestBody(contentBlocks, new[] { tool }, "classify_document");
@@ -73,14 +72,14 @@ public class ClaudeApiClient : ILlmApiClient
             LatencyMs: (int)sw.ElapsedMilliseconds);
     }
     public async Task<ExtractionResult> ExtractAsync(
-        Document doc, Stream rawFile, string documentType, string promptVersion, CancellationToken ct = default)
+        Document doc, Stream rawFile, string documentType, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var contentBlocks = await BuildContentBlocksAsync(doc, rawFile, ct);
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
-            ["text"] = PromptProvider.GetExtractionPrompt(documentType)
+            ["text"] = promptText
         });
         var tool = BuildExtractionTool();
         var requestBody = BuildRequestBody(contentBlocks, new[] { tool }, "extract_invoice_data");
