@@ -24,7 +24,7 @@ public class ReviewService : IReviewService
         _logger = logger;
     }
 
-    public Task<OperationResult<Document>> ApproveAsync(long tenantId, long documentId, string notes, CancellationToken ct = default)
+    public async Task<OperationResult<Document>> ApproveAsync(long tenantId, long documentId, string notes, CancellationToken ct = default)
     {
         using var session = _sessionFactory.OpenSession();
         var document = new LoadDocumentByIdQuery(tenantId, documentId)
@@ -32,11 +32,11 @@ public class ReviewService : IReviewService
             .Execute();
 
         if (document == null)
-            return Task.FromResult(OperationResult<Document>.NotFound($"Document with id {documentId} not found."));
+            return OperationResult<Document>.NotFound($"Document with id {documentId} not found.");
 
         if (!_workflow.CanTransition(document.Status, DocumentStatus.Completed))
-            return Task.FromResult(OperationResult<Document>.Conflict(
-                $"Cannot approve document in status '{document.Status}'."));
+            return OperationResult<Document>.Conflict(
+                $"Cannot approve document in status '{document.Status}'.");
 
         var previousStatus = document.Status;
         var utcNow = DateTime.UtcNow;
@@ -71,14 +71,14 @@ public class ReviewService : IReviewService
         new ApproveDocumentCommand(document, flagsToResolve, auditEvent)
             .UseExternalSession(session)
             .Execute();
-        tran.Commit();
+        await tran.CommitAsync(ct);
 
         _logger.LogInformation("Approved document {DocumentId} for tenant {TenantId}", documentId, tenantId);
 
-        return Task.FromResult(OperationResult<Document>.Success(document));
+        return OperationResult<Document>.Success(document);
     }
 
-    public Task<OperationResult<Document>> RejectAsync(long tenantId, long documentId, string reason, CancellationToken ct = default)
+    public async Task<OperationResult<Document>> RejectAsync(long tenantId, long documentId, string reason, CancellationToken ct = default)
     {
         using var session = _sessionFactory.OpenSession();
         var document = new LoadDocumentByIdQuery(tenantId, documentId)
@@ -86,11 +86,11 @@ public class ReviewService : IReviewService
             .Execute();
 
         if (document == null)
-            return Task.FromResult(OperationResult<Document>.NotFound($"Document with id {documentId} not found."));
+            return OperationResult<Document>.NotFound($"Document with id {documentId} not found.");
 
         if (!_workflow.CanTransition(document.Status, DocumentStatus.Rejected))
-            return Task.FromResult(OperationResult<Document>.Conflict(
-                $"Cannot reject document in status '{document.Status}'."));
+            return OperationResult<Document>.Conflict(
+                $"Cannot reject document in status '{document.Status}'.");
 
         var previousStatus = document.Status;
         var utcNow = DateTime.UtcNow;
@@ -114,10 +114,10 @@ public class ReviewService : IReviewService
         new RejectDocumentCommand(document, auditEvent)
             .UseExternalSession(session)
             .Execute();
-        tran.Commit();
+        await tran.CommitAsync(ct);
 
         _logger.LogInformation("Rejected document {DocumentId} for tenant {TenantId}, reason: {Reason}", documentId, tenantId, reason);
 
-        return Task.FromResult(OperationResult<Document>.Success(document));
+        return OperationResult<Document>.Success(document);
     }
 }

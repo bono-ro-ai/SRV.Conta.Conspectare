@@ -86,13 +86,14 @@ public class ReviewServiceTests
         return (doc, tenant);
     }
 
-    private ApiClient CreateTenant(ISession session)
+    private ApiClient CreateTenant(ISession session, string suffix = "")
     {
+        var id = Guid.NewGuid().ToString("N")[..8];
         var tenant = new ApiClient
         {
-            Name = "Test Tenant",
-            ApiKeyHash = "hash_test",
-            ApiKeyPrefix = "dp_test_",
+            Name = $"Test Tenant {id}",
+            ApiKeyHash = $"hash_{id}",
+            ApiKeyPrefix = $"dp_{id}_",
             IsActive = true,
             RateLimitPerMin = 100,
             MaxFileSizeMb = 50,
@@ -241,6 +242,36 @@ public class ReviewServiceTests
 
         var service = CreateService(sharedFactory);
         var result = await service.RejectAsync(tenant.Id, 999999, "reason", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(404, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task ApproveAsync_DifferentTenant_ReturnsNotFound()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var session = sharedFactory.OpenSession();
+        var (doc, _) = SeedReviewRequiredDocument(session, withFlags: false);
+        var otherTenant = CreateTenant(session);
+
+        var service = CreateService(sharedFactory);
+        var result = await service.ApproveAsync(otherTenant.Id, doc.Id, null, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(404, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task RejectAsync_DifferentTenant_ReturnsNotFound()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var session = sharedFactory.OpenSession();
+        var (doc, _) = SeedReviewRequiredDocument(session, withFlags: false);
+        var otherTenant = CreateTenant(session);
+
+        var service = CreateService(sharedFactory);
+        var result = await service.RejectAsync(otherTenant.Id, doc.Id, "reason", CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.StatusCode);

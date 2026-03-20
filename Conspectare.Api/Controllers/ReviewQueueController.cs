@@ -72,7 +72,7 @@ public class ReviewQueueController : ControllerBase
     public async Task<IActionResult> GetById(long id, CancellationToken ct)
     {
         var tenantId = _tenantContext.TenantId;
-        var document = new LoadReviewDocumentDetailQuery(tenantId, id).Execute();
+        var document = new LoadDocumentByIdQuery(tenantId, id).Execute();
 
         if (document == null)
             return NotFound(new ProblemDetails
