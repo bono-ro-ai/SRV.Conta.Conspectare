@@ -88,7 +88,7 @@ public class GeminiApiClient : ILlmApiClient
         if (usage.OutputTokens.HasValue)
             _metrics.RecordLlmTokens("gemini", "output", usage.OutputTokens.Value);
         var outputJson = args.ToJsonString(JsonOptions);
-        var schemaVersion = "1.0.0";
+        var schemaVersion = "2.0.0";
         var reviewFlags = new List<ReviewFlagInfo>();
         if (args["review_flags"] is JsonArray flagsArray)
         {

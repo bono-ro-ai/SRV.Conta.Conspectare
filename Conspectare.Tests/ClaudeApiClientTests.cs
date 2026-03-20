@@ -229,7 +229,7 @@ public class ClaudeApiClientTests
         var result = await client.ExtractAsync(doc, stream, "invoice", "test prompt", "extraction_v1.0.0");
 
         Assert.Contains("FAC-2024-001", result.OutputJson);
-        Assert.Equal("1.0.0", result.SchemaVersion);
+        Assert.Equal("2.0.0", result.SchemaVersion);
         Assert.Equal("claude-sonnet-4-20250514", result.ModelId);
         Assert.Equal("extraction_v1.0.0", result.PromptVersion);
         Assert.Equal(1000, result.InputTokens);

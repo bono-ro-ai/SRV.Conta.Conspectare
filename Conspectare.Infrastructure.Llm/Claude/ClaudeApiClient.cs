@@ -92,7 +92,7 @@ public class ClaudeApiClient : ILlmApiClient
         if (usage.OutputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "output", usage.OutputTokens.Value);
         var outputJson = toolInput.ToJsonString(JsonOptions);
-        var schemaVersion = "1.0.0";
+        var schemaVersion = "2.0.0";
         var reviewFlags = new List<ReviewFlagInfo>();
         if (toolInput["review_flags"] is JsonArray flagsArray)
         {
