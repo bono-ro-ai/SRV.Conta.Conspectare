@@ -86,7 +86,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
                     "ANAF API request failed for CUI {Cui}, retrying (attempt {Attempt}/{MaxRetries})",
                     cui, attempt + 1, _settings.MaxRetries);
             }
-            catch (HttpRequestException ex)
+            catch (HttpRequestException)
             {
                 return new AnafValidationResult(
                     IsValid: false,

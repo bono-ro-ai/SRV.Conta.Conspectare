@@ -17,7 +17,7 @@ public class AnafVatValidationClientTests
     };
 
     private static AnafVatValidationClient CreateClient(
-        MockHttpMessageHandler handler, AnafVatValidationSettings settings = null)
+        HttpMessageHandler handler, AnafVatValidationSettings settings = null)
     {
         settings ??= DefaultSettings;
         var httpClient = new HttpClient(handler);
