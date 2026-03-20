@@ -5,7 +5,9 @@ namespace Conspectare.Services.Extraction;
 
 public static class ExtractionValidator
 {
+    /// <summary>Per-line rounding tolerance: allows ±2 bani (RON cents) for quantity × unit_price floating-point discrepancies.</summary>
     private const decimal LineItemTolerance = 0.02m;
+    /// <summary>Invoice total tolerance: allows ±1 RON for cumulative rounding across line items, VAT, and discount.</summary>
     private const decimal TotalTolerance = 1.00m;
 
     public static List<ReviewFlagInfo> Validate(CanonicalInvoice invoice)

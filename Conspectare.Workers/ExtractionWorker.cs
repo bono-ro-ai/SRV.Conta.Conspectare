@@ -126,7 +126,7 @@ public class ExtractionWorker : DistributedBackgroundService
             OutputJson = result.OutputJson,
             CreatedAt = utcNow
         };
-        TryDenormalizeFields(canonicalOutput, result.OutputJson);
+        TryDenormalizeFields(canonicalOutput, result.OutputJson, logger);
         var artifactS3Key = $"tenants/{doc.TenantId}/documents/{doc.Id}/llm_extraction_response.json";
         var responseBytes = Encoding.UTF8.GetBytes(result.OutputJson);
         using var responseStream = new MemoryStream(responseBytes);
@@ -258,7 +258,7 @@ public class ExtractionWorker : DistributedBackgroundService
             WinningModelId = winningResult.ModelId,
             CreatedAt = utcNow
         };
-        TryDenormalizeFields(canonicalOutput, winningResult.OutputJson);
+        TryDenormalizeFields(canonicalOutput, winningResult.OutputJson, logger);
         var attempts = new List<ExtractionAttempt>();
         var artifacts = new List<DocumentArtifact>();
         foreach (var (providerKey, result) in consensus.AllResults)
@@ -423,7 +423,7 @@ public class ExtractionWorker : DistributedBackgroundService
             return new List<ReviewFlagInfo>();
         }
     }
-    private static void TryDenormalizeFields(CanonicalOutput output, string outputJson)
+    private static void TryDenormalizeFields(CanonicalOutput output, string outputJson, ILogger logger)
     {
         try
         {
@@ -471,8 +471,9 @@ public class ExtractionWorker : DistributedBackgroundService
             if (root.TryGetProperty("swift_bic", out var swiftBic))
                 output.SwiftBic = swiftBic.GetString();
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "ExtractionWorker: failed to denormalize fields from OutputJson");
         }
     }
 }
