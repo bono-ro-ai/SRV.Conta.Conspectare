@@ -52,6 +52,12 @@ export async function getDocumentById(
   id: number,
 ): Promise<DocumentResponse> {
   const response = await authFetch(`/api/v1/documents/${id}`);
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as ProblemDetails | null;
+    throw new Error(
+      body?.detail ?? body?.title ?? `Failed to fetch document (status ${response.status})`,
+    );
+  }
   return (await response.json()) as DocumentResponse;
 }
 
@@ -85,6 +91,12 @@ export async function retryDocument(
   const response = await authFetch(`/api/v1/documents/${id}/retry`, {
     method: "POST",
   });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as ProblemDetails | null;
+    throw new Error(
+      body?.detail ?? body?.title ?? `Retry failed (status ${response.status})`,
+    );
+  }
   return (await response.json()) as DocumentResponse;
 }
 

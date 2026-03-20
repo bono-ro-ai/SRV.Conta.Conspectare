@@ -12,11 +12,20 @@ public class LoadDocumentByIdQuery(long tenantId, long documentId)
         CanonicalOutput canonicalAlias = null;
         ReviewFlag reviewFlagAlias = null;
 
-        return Session.QueryOver<Document>()
+        var document = Session.QueryOver<Document>()
             .Where(d => d.TenantId == tenantId)
             .And(d => d.Id == documentId)
             .Left.JoinAlias(d => d.CanonicalOutput, () => canonicalAlias)
             .Left.JoinAlias(d => d.ReviewFlags, () => reviewFlagAlias)
+            .TransformUsing(NHibernate.Transform.Transformers.DistinctRootEntity)
             .SingleOrDefault();
+
+        if (document != null)
+        {
+            NHibernateUtil.Initialize(document.Events);
+            NHibernateUtil.Initialize(document.ExtractionAttempts);
+        }
+
+        return document;
     }
 }

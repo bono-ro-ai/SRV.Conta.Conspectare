@@ -21,6 +21,9 @@ public record DocumentResponse(
     string Metadata,
     string CanonicalOutputJson,
     IReadOnlyList<ReviewFlagResponse> ReviewFlags,
+    IReadOnlyList<DocumentEventResponse> Events,
+    IReadOnlyList<ExtractionAttemptResponse> ExtractionAttempts,
+    bool IsTerminal,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? CompletedAt)
@@ -34,6 +37,20 @@ public record DocumentResponse(
             .ToList()
             .AsReadOnly()
             ?? (IReadOnlyList<ReviewFlagResponse>)Array.Empty<ReviewFlagResponse>();
+
+        var events = document.Events?
+            .OrderBy(e => e.CreatedAt)
+            .Select(DocumentEventResponse.FromEntity)
+            .ToList()
+            .AsReadOnly()
+            ?? (IReadOnlyList<DocumentEventResponse>)Array.Empty<DocumentEventResponse>();
+
+        var attempts = document.ExtractionAttempts?
+            .OrderBy(a => a.AttemptNumber)
+            .Select(ExtractionAttemptResponse.FromEntity)
+            .ToList()
+            .AsReadOnly()
+            ?? (IReadOnlyList<ExtractionAttemptResponse>)Array.Empty<ExtractionAttemptResponse>();
 
         var canonicalJson = externalStatus == "completed" ? document.CanonicalOutput?.OutputJson : null;
 
@@ -55,6 +72,9 @@ public record DocumentResponse(
             document.Metadata,
             canonicalJson,
             flags,
+            events,
+            attempts,
+            workflow.IsTerminalState(document.Status),
             document.CreatedAt,
             document.UpdatedAt,
             document.CompletedAt);
