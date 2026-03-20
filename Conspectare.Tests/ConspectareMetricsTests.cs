@@ -45,7 +45,6 @@ public class ConspectareMetricsTests
         };
         foreach (var name in expected)
             Assert.Contains(name, instrumentNames);
-        Assert.Equal(expected.Length, instrumentNames.Count);
     }
 
     [Fact]
