@@ -18,8 +18,11 @@ public static class Startup
             options.AddDefaultPolicy(policy =>
             {
                 var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-                policy.WithOrigins(allowedOrigins)
-                      .AllowAnyHeader()
+                if (allowedOrigins.Length > 0)
+                    policy.WithOrigins(allowedOrigins);
+                else
+                    policy.AllowAnyOrigin();
+                policy.AllowAnyHeader()
                       .AllowAnyMethod();
             });
         });
