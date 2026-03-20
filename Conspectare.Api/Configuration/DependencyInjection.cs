@@ -79,6 +79,7 @@ internal static class DependencyInjection
         services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
         services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
         services.AddScoped<IDocumentService, DocumentService>();
+        services.AddScoped<IReviewService, ReviewService>();
 
         services.AddHttpClient<IWebhookDispatchService, WebhookDispatchService>();
 
