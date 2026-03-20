@@ -79,7 +79,10 @@ internal static class DependencyInjection
         services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
         services.AddScoped<IDocumentService, DocumentService>();
 
+        services.AddHttpClient<IWebhookDispatchService, WebhookDispatchService>();
+
         services.AddHostedService<TriageWorker>();
         services.AddHostedService<ExtractionWorker>();
+        services.AddHostedService<WebhookWorker>();
     }
 }
