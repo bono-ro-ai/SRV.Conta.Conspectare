@@ -10,8 +10,10 @@ using Conspectare.Services;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Processors;
+using Conspectare.Services.Observability;
 using Conspectare.Workers;
 using FluentMigrator.Runner;
+using OpenTelemetry.Metrics;
 
 namespace Conspectare.Api.Configuration;
 
@@ -45,6 +47,12 @@ internal static class DependencyInjection
         services.Configure<AwsSettings>(config.GetSection("Aws"));
         services.AddSingleton<IStorageService, S3StorageService>();
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
+
+        services.AddSingleton<ConspectareMetrics>();
+        services.AddOpenTelemetry()
+            .WithMetrics(b => b
+                .AddMeter(ConspectareMetrics.MeterName)
+                .AddPrometheusExporter());
 
         var llmProvider = config.GetValue<string>("Llm:Provider") ?? "claude";
         switch (llmProvider.ToLowerInvariant())

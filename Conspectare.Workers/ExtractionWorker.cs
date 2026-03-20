@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
@@ -5,6 +6,7 @@ using Conspectare.Services;
 using Conspectare.Services.Commands;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
+using Conspectare.Services.Observability;
 using Conspectare.Services.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -28,6 +30,7 @@ public class ExtractionWorker : DistributedBackgroundService
         var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
         var workflow = scope.ServiceProvider.GetRequiredService<DocumentStatusWorkflow>();
         var vatValidationService = scope.ServiceProvider.GetRequiredService<VatValidationService>();
+        var metrics = scope.ServiceProvider.GetRequiredService<ConspectareMetrics>();
         var pendingDocs = new FindPendingExtractionDocumentsQuery(BatchSize).Execute();
         if (pendingDocs.Count == 0)
             return 0;
@@ -37,13 +40,19 @@ public class ExtractionWorker : DistributedBackgroundService
         var processedCount = 0;
         foreach (var doc in claimedDocs)
         {
+            var sw = Stopwatch.StartNew();
             try
             {
-                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, vatValidationService, logger, ct);
+                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, vatValidationService, metrics, logger, ct);
+                sw.Stop();
+                metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
                 processedCount++;
             }
             catch (Exception ex)
             {
+                sw.Stop();
+                metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
+                metrics.RecordDocumentFailed("extraction", "unhandled_error");
                 logger.LogError(ex,
                     "ExtractionWorker: unhandled error for document {DocumentId}", doc.Id);
             }
@@ -56,6 +65,7 @@ public class ExtractionWorker : DistributedBackgroundService
         IStorageService storageService,
         DocumentStatusWorkflow workflow,
         VatValidationService vatValidationService,
+        ConspectareMetrics metrics,
         ILogger logger,
         CancellationToken ct)
     {
@@ -69,7 +79,7 @@ public class ExtractionWorker : DistributedBackgroundService
         }
         catch (Exception ex)
         {
-            HandleExtractionError(doc, workflow, ex, utcNow, logger);
+            HandleExtractionError(doc, workflow, metrics, ex, utcNow, logger);
             return;
         }
         var hasReviewFlags = result.ReviewFlags is { Count: > 0 };
@@ -149,6 +159,10 @@ public class ExtractionWorker : DistributedBackgroundService
             }).ToList<ReviewFlag>();
         }
         new SaveExtractionResultCommand(doc, canonicalOutput, attempt, statusEvent, artifact, reviewFlags).Execute();
+        if (nextStatus == DocumentStatus.Completed)
+            metrics.RecordDocumentCompleted("extraction");
+        else if (nextStatus == DocumentStatus.ReviewRequired)
+            metrics.RecordDocumentCompleted("extraction_review_required");
         logger.LogInformation(
             "ExtractionWorker: document {DocumentId} extracted -> {NextStatus} " +
             "(schema={SchemaVersion}, flags={FlagCount})",
@@ -168,6 +182,7 @@ public class ExtractionWorker : DistributedBackgroundService
     private static void HandleExtractionError(
         Document doc,
         DocumentStatusWorkflow workflow,
+        ConspectareMetrics metrics,
         Exception ex,
         DateTime utcNow,
         ILogger logger)
@@ -178,6 +193,8 @@ public class ExtractionWorker : DistributedBackgroundService
         var nextStatus = doc.RetryCount >= doc.MaxRetries
             ? DocumentStatus.Failed
             : DocumentStatus.ExtractionFailed;
+        if (nextStatus == DocumentStatus.Failed)
+            metrics.RecordDocumentFailed("extraction", "max_retries_exceeded");
         if (!workflow.CanTransition(DocumentStatus.Extracting, nextStatus))
         {
             logger.LogError(

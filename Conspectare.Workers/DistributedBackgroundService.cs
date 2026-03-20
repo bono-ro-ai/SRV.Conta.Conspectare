@@ -78,7 +78,14 @@ public abstract class DistributedBackgroundService : BackgroundService
             return;
         }
         var startedAt = DateTime.UtcNow;
+        var correlationId = Guid.NewGuid().ToString("N")[..12];
         var sw = Stopwatch.StartNew();
+        using var logScope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["CorrelationId"] = correlationId,
+            ["JobName"] = JobName,
+            ["InstanceId"] = _instanceId
+        });
         _logger.LogInformation("{JobName}: started on {InstanceId}", JobName, _instanceId);
         try
         {

@@ -12,7 +12,7 @@ public class ApiKeyAuthMiddleware
 {
     private readonly RequestDelegate _next;
 
-    private static readonly string[] ExemptPrefixes = ["/health", "/swagger", "/scalar"];
+    private static readonly string[] ExemptPrefixes = ["/health", "/swagger", "/scalar", "/metrics"];
 
     public ApiKeyAuthMiddleware(RequestDelegate next)
     {

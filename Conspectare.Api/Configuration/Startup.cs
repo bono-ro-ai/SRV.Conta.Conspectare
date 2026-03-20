@@ -47,5 +47,6 @@ public static class Startup
         app.UseMiddleware<RateLimitingMiddleware>();
 
         app.MapControllers();
+        app.MapPrometheusScrapingEndpoint();
     }
 }

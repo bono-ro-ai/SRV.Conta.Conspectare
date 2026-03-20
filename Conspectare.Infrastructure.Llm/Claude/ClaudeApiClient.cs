@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
+using Conspectare.Services.Observability;
 using Conspectare.Services.Processors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -22,14 +23,17 @@ public class ClaudeApiClient : ILlmApiClient
     private readonly HttpClient _httpClient;
     private readonly ClaudeApiSettings _settings;
     private readonly ILogger<ClaudeApiClient> _logger;
+    private readonly ConspectareMetrics _metrics;
     public ClaudeApiClient(
         HttpClient httpClient,
         IOptions<ClaudeApiSettings> options,
-        ILogger<ClaudeApiClient> logger)
+        ILogger<ClaudeApiClient> logger,
+        ConspectareMetrics metrics)
     {
         _httpClient = httpClient;
         _settings = options.Value;
         _logger = logger;
+        _metrics = metrics;
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _settings.ApiKey);
@@ -50,6 +54,11 @@ public class ClaudeApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
         var (toolInput, usage) = ParseToolUseResponse(response, "classify_document");
+        _metrics.RecordLlmCallDuration("claude", "triage", sw.ElapsedMilliseconds);
+        if (usage.InputTokens.HasValue)
+            _metrics.RecordLlmTokens("claude", "input", usage.InputTokens.Value);
+        if (usage.OutputTokens.HasValue)
+            _metrics.RecordLlmTokens("claude", "output", usage.OutputTokens.Value);
         var documentType = toolInput["document_type"]?.GetValue<string>() ?? "unknown";
         var confidence = toolInput["confidence"]?.GetValue<decimal>() ?? 0m;
         var isAccountingRelevant = toolInput["is_accounting_relevant"]?.GetValue<bool>() ?? false;
@@ -78,6 +87,11 @@ public class ClaudeApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
         var (toolInput, usage) = ParseToolUseResponse(response, "extract_invoice_data");
+        _metrics.RecordLlmCallDuration("claude", "extraction", sw.ElapsedMilliseconds);
+        if (usage.InputTokens.HasValue)
+            _metrics.RecordLlmTokens("claude", "input", usage.InputTokens.Value);
+        if (usage.OutputTokens.HasValue)
+            _metrics.RecordLlmTokens("claude", "output", usage.OutputTokens.Value);
         var outputJson = toolInput.ToJsonString(JsonOptions);
         var schemaVersion = "1.0.0";
         var reviewFlags = new List<ReviewFlagInfo>();
