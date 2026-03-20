@@ -85,23 +85,19 @@ public class VatValidationService
             }
         }
 
+        SaveValidationResults(document, validationResults);
+
         var hasIssues = validationResults.Any(r => !r.result.IsValid || r.result.IsInactive);
+        _logger.LogInformation(
+            hasIssues
+                ? "VatValidationService: document {DocumentId} VAT validation completed with issues"
+                : "VatValidationService: document {DocumentId} VAT validation passed — all CUIs valid",
+            document.Id);
+    }
 
-        if (hasIssues)
-        {
-            new SaveVatValidationResultCommand(document, validationResults).Execute();
-
-            _logger.LogInformation(
-                "VatValidationService: document {DocumentId} VAT validation completed with issues",
-                document.Id);
-        }
-        else
-        {
-            new SaveVatValidationResultCommand(document, validationResults).Execute();
-
-            _logger.LogInformation(
-                "VatValidationService: document {DocumentId} VAT validation passed — all CUIs valid",
-                document.Id);
-        }
+    protected virtual void SaveValidationResults(
+        Document document, IList<(string role, AnafValidationResult result)> validationResults)
+    {
+        new SaveVatValidationResultCommand(document, validationResults).Execute();
     }
 }

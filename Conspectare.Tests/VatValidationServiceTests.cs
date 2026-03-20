@@ -42,11 +42,25 @@ public class VatValidationServiceTests
         return doc;
     }
 
-    private static VatValidationService CreateService(Mock<IAnafVatValidationClient> mockClient)
+    private static TestableVatValidationService CreateService(Mock<IAnafVatValidationClient> mockClient)
     {
-        return new VatValidationService(
+        return new TestableVatValidationService(
             mockClient.Object,
             NullLogger<VatValidationService>.Instance);
+    }
+
+    private class TestableVatValidationService(
+        IAnafVatValidationClient anafClient,
+        Microsoft.Extensions.Logging.ILogger<VatValidationService> logger)
+        : VatValidationService(anafClient, logger)
+    {
+        public IList<(string role, AnafValidationResult result)> SavedResults { get; private set; }
+
+        protected override void SaveValidationResults(
+            Document document, IList<(string role, AnafValidationResult result)> validationResults)
+        {
+            SavedResults = validationResults;
+        }
     }
 
     [Fact]
