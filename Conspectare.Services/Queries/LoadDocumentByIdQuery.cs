@@ -11,17 +11,21 @@ public class LoadDocumentByIdQuery(long tenantId, long documentId)
     {
         CanonicalOutput canonicalAlias = null;
         ReviewFlag reviewFlagAlias = null;
-        DocumentEvent eventAlias = null;
-        ExtractionAttempt extractionAlias = null;
 
-        return Session.QueryOver<Document>()
+        var document = Session.QueryOver<Document>()
             .Where(d => d.TenantId == tenantId)
             .And(d => d.Id == documentId)
             .Left.JoinAlias(d => d.CanonicalOutput, () => canonicalAlias)
             .Left.JoinAlias(d => d.ReviewFlags, () => reviewFlagAlias)
-            .Left.JoinAlias(d => d.Events, () => eventAlias)
-            .Left.JoinAlias(d => d.ExtractionAttempts, () => extractionAlias)
             .TransformUsing(NHibernate.Transform.Transformers.DistinctRootEntity)
             .SingleOrDefault();
+
+        if (document != null)
+        {
+            NHibernateUtil.Initialize(document.Events);
+            NHibernateUtil.Initialize(document.ExtractionAttempts);
+        }
+
+        return document;
     }
 }
