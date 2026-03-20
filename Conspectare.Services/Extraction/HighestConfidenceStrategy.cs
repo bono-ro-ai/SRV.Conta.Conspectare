@@ -15,6 +15,7 @@ public class HighestConfidenceStrategy : IConsensusStrategy
         var winner = results
             .OrderBy(r => r.Result.ReviewFlags?.Count ?? 0)
             .ThenBy(r => r.Result.LatencyMs ?? int.MaxValue)
+            .ThenBy(r => r.ProviderKey)
             .First();
         return new ConsensusResult(winner.Result, winner.ProviderKey, "highest_confidence", results);
     }
