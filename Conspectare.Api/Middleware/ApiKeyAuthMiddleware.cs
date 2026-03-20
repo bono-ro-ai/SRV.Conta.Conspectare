@@ -12,7 +12,7 @@ public class ApiKeyAuthMiddleware
 {
     private readonly RequestDelegate _next;
 
-    private static readonly string[] ExemptPrefixes = ["/health", "/swagger", "/scalar", "/metrics"];
+    private static readonly string[] ExemptPrefixes = ["/health", "/swagger", "/scalar"];
 
     public ApiKeyAuthMiddleware(RequestDelegate next)
     {
@@ -21,12 +21,6 @@ public class ApiKeyAuthMiddleware
 
     public async Task InvokeAsync(HttpContext context, ISessionFactory sessionFactory, ITenantContext tenantContext)
     {
-        if (context.Request.Method.Equals("OPTIONS", StringComparison.OrdinalIgnoreCase))
-        {
-            await _next(context);
-            return;
-        }
-
         var path = context.Request.Path.Value ?? string.Empty;
 
         if (ExemptPrefixes.Any(prefix => path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
@@ -93,6 +87,7 @@ public class ApiKeyAuthMiddleware
         tenantContext.TenantId = apiClient.Id;
         tenantContext.ApiKeyPrefix = apiClient.ApiKeyPrefix;
         tenantContext.RateLimitPerMin = apiClient.RateLimitPerMin;
+        tenantContext.IsAdmin = apiClient.IsAdmin;
 
         await _next(context);
     }
