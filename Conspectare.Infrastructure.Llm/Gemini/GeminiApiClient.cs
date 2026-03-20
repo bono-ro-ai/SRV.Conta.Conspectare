@@ -8,7 +8,6 @@ using Conspectare.Domain.Entities;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
-using Conspectare.Services.Processors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 namespace Conspectare.Infrastructure.Llm.Gemini;
@@ -38,13 +37,13 @@ public class GeminiApiClient : ILlmApiClient
         _httpClient.DefaultRequestHeaders.Add("x-goog-api-key", _settings.ApiKey);
     }
     public async Task<TriageResult> TriageAsync(
-        Document doc, Stream rawFile, string promptVersion, CancellationToken ct = default)
+        Document doc, Stream rawFile, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var parts = await BuildPartsAsync(doc, rawFile, ct);
         parts.Insert(0, new JsonObject
         {
-            ["text"] = PromptProvider.GetTriagePrompt()
+            ["text"] = promptText
         });
         var functionDeclaration = BuildTriageFunctionDeclaration();
         var requestBody = BuildRequestBody(parts, new[] { functionDeclaration }, "classify_document");
@@ -70,13 +69,13 @@ public class GeminiApiClient : ILlmApiClient
             LatencyMs: (int)sw.ElapsedMilliseconds);
     }
     public async Task<ExtractionResult> ExtractAsync(
-        Document doc, Stream rawFile, string documentType, string promptVersion, CancellationToken ct = default)
+        Document doc, Stream rawFile, string documentType, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
         var parts = await BuildPartsAsync(doc, rawFile, ct);
         parts.Insert(0, new JsonObject
         {
-            ["text"] = PromptProvider.GetExtractionPrompt(documentType)
+            ["text"] = promptText
         });
         var functionDeclaration = BuildExtractionFunctionDeclaration();
         var requestBody = BuildRequestBody(parts, new[] { functionDeclaration }, "extract_invoice_data");
