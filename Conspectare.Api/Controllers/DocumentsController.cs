@@ -146,4 +146,15 @@ public class DocumentsController : ControllerBase
 
         return Ok(DocumentResponse.FromEntity(result.Data, _workflow));
     }
+
+    [HttpPost("{id:long}/resolve")]
+    public async Task<IActionResult> Resolve(long id, [FromBody] ResolveDocumentRequest request, CancellationToken ct)
+    {
+        var result = await _documentService.ResolveAsync(id, request.Action, request.CanonicalOutputJson, ct);
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        return Ok(DocumentResponse.FromEntity(result.Data, _workflow));
+    }
 }

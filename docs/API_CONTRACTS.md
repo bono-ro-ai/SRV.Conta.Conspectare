@@ -179,6 +179,61 @@ Retry processing a failed document. Only allowed for documents in a failed state
 - `404 Not Found` — Document does not exist or belongs to another tenant
 - `409 Conflict` — Document is not in a retryable state
 
+### POST `/api/v1/documents/{id}/resolve`
+
+Manually resolve a document in `review_required` status.
+
+**Path Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | long | Document ID |
+
+**Request Body** `application/json`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | string | Yes | One of: `confirm`, `provide_corrected`, `reject` |
+| `canonicalOutputJson` | string | Conditional | Required when action is `provide_corrected`. The corrected canonical output JSON. |
+
+**Actions**:
+- `confirm` — Accept current extraction as-is, mark review flags resolved, transition to `completed`
+- `provide_corrected` — Provide corrected canonical output JSON, update extraction, mark review flags resolved, transition to `completed`
+- `reject` — Reject the document, mark review flags resolved, transition to `rejected`
+
+**Request Examples**:
+
+Confirm:
+```json
+{
+  "action": "confirm",
+  "canonicalOutputJson": null
+}
+```
+
+Provide corrected:
+```json
+{
+  "action": "provide_corrected",
+  "canonicalOutputJson": "{\"invoiceNumber\": \"INV-001\", ...}"
+}
+```
+
+Reject:
+```json
+{
+  "action": "reject",
+  "canonicalOutputJson": null
+}
+```
+
+**Response** `200 OK`: Returns the updated `DocumentResponse` (same schema as GET `/api/v1/documents/{id}`).
+
+**Error Responses**:
+- `400 Bad Request` — Invalid action or missing `canonicalOutputJson` for `provide_corrected`
+- `404 Not Found` — Document does not exist or belongs to another tenant
+- `409 Conflict` — Document is not in `review_required` status
+
 ## Authentication
 
 ### POST `/api/v1/auth/validate`
