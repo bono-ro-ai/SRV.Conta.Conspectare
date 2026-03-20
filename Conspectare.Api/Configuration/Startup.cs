@@ -13,6 +13,16 @@ public static class Startup
         services.AddProblemDetails();
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
+        services.AddCors(options =>
+        {
+            options.AddDefaultPolicy(policy =>
+            {
+                var allowedOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+                policy.WithOrigins(allowedOrigins)
+                      .AllowAnyHeader()
+                      .AllowAnyMethod();
+            });
+        });
         services.AddControllers();
         services.AddOpenApi();
 
@@ -35,6 +45,7 @@ public static class Startup
         app.UseExceptionHandler();
         app.UseForwardedHeaders();
         app.UseRouting();
+        app.UseCors();
 
         if (env.IsDevelopment())
         {
