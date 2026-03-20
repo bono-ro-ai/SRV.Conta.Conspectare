@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using System.Text.Json;
 using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
 using Conspectare.Services;
@@ -9,7 +8,6 @@ using Conspectare.Services.Extraction;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
-using Conspectare.Services.Processors.Models;
 using Conspectare.Services.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -99,12 +97,7 @@ public class ExtractionWorker : DistributedBackgroundService
             HandleExtractionError(doc, workflow, metrics, ex, utcNow, logger);
             return;
         }
-        var validationFindings = RunPostExtractionValidation(result.OutputJson, logger);
-        var allFlags = new List<ReviewFlagInfo>();
-        if (result.ReviewFlags is { Count: > 0 })
-            allFlags.AddRange(result.ReviewFlags);
-        allFlags.AddRange(validationFindings);
-        var hasReviewFlags = allFlags.Count > 0;
+        var hasReviewFlags = result.ReviewFlags is { Count: > 0 };
         var nextStatus = hasReviewFlags
             ? DocumentStatus.ReviewRequired
             : DocumentStatus.Completed;
@@ -126,7 +119,7 @@ public class ExtractionWorker : DistributedBackgroundService
             OutputJson = result.OutputJson,
             CreatedAt = utcNow
         };
-        TryDenormalizeFields(canonicalOutput, result.OutputJson, logger);
+        TryDenormalizeFields(canonicalOutput, result.OutputJson);
         var artifactS3Key = $"tenants/{doc.TenantId}/documents/{doc.Id}/llm_extraction_response.json";
         var responseBytes = Encoding.UTF8.GetBytes(result.OutputJson);
         using var responseStream = new MemoryStream(responseBytes);
@@ -156,7 +149,7 @@ public class ExtractionWorker : DistributedBackgroundService
             CompletedAt = utcNow
         };
         var statusDetails = hasReviewFlags
-            ? $"Extraction completed with {allFlags.Count} review flag(s)"
+            ? $"Extraction completed with {result.ReviewFlags!.Count} review flag(s)"
             : "Extraction completed successfully";
         var statusEvent = new DocumentEvent
         {
@@ -170,7 +163,7 @@ public class ExtractionWorker : DistributedBackgroundService
         IList<ReviewFlag> reviewFlags = null;
         if (hasReviewFlags)
         {
-            reviewFlags = allFlags.Select(f => new ReviewFlag
+            reviewFlags = result.ReviewFlags!.Select(f => new ReviewFlag
             {
                 TenantId = doc.TenantId,
                 FlagType = f.FlagType,
@@ -229,12 +222,7 @@ public class ExtractionWorker : DistributedBackgroundService
             return;
         }
         var winningResult = consensus.WinningResult;
-        var multiValidationFindings = RunPostExtractionValidation(winningResult.OutputJson, logger);
-        var multiAllFlags = new List<ReviewFlagInfo>();
-        if (winningResult.ReviewFlags is { Count: > 0 })
-            multiAllFlags.AddRange(winningResult.ReviewFlags);
-        multiAllFlags.AddRange(multiValidationFindings);
-        var hasReviewFlags = multiAllFlags.Count > 0;
+        var hasReviewFlags = winningResult.ReviewFlags is { Count: > 0 };
         var nextStatus = hasReviewFlags
             ? DocumentStatus.ReviewRequired
             : DocumentStatus.Completed;
@@ -258,7 +246,7 @@ public class ExtractionWorker : DistributedBackgroundService
             WinningModelId = winningResult.ModelId,
             CreatedAt = utcNow
         };
-        TryDenormalizeFields(canonicalOutput, winningResult.OutputJson, logger);
+        TryDenormalizeFields(canonicalOutput, winningResult.OutputJson);
         var attempts = new List<ExtractionAttempt>();
         var artifacts = new List<DocumentArtifact>();
         foreach (var (providerKey, result) in consensus.AllResults)
@@ -294,7 +282,7 @@ public class ExtractionWorker : DistributedBackgroundService
             });
         }
         var statusDetails = hasReviewFlags
-            ? $"Multi-model extraction completed with {multiAllFlags.Count} review flag(s) (strategy={consensus.StrategyUsed}, winner={consensus.WinningProviderKey})"
+            ? $"Multi-model extraction completed with {winningResult.ReviewFlags!.Count} review flag(s) (strategy={consensus.StrategyUsed}, winner={consensus.WinningProviderKey})"
             : $"Multi-model extraction completed successfully (strategy={consensus.StrategyUsed}, winner={consensus.WinningProviderKey})";
         var statusEvent = new DocumentEvent
         {
@@ -308,7 +296,7 @@ public class ExtractionWorker : DistributedBackgroundService
         IList<ReviewFlag> reviewFlags = null;
         if (hasReviewFlags)
         {
-            reviewFlags = multiAllFlags.Select(f => new ReviewFlag
+            reviewFlags = winningResult.ReviewFlags!.Select(f => new ReviewFlag
             {
                 TenantId = doc.TenantId,
                 FlagType = f.FlagType,
@@ -408,22 +396,7 @@ public class ExtractionWorker : DistributedBackgroundService
                 "ExtractionWorker: failed to enqueue webhook for document {DocumentId}", doc.Id);
         }
     }
-    private static List<ReviewFlagInfo> RunPostExtractionValidation(string outputJson, ILogger logger)
-    {
-        try
-        {
-            var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
-            var invoice = JsonSerializer.Deserialize<CanonicalInvoice>(outputJson, options);
-            if (invoice == null) return new List<ReviewFlagInfo>();
-            return ExtractionValidator.Validate(invoice);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "ExtractionWorker: post-extraction validation failed, skipping");
-            return new List<ReviewFlagInfo>();
-        }
-    }
-    private static void TryDenormalizeFields(CanonicalOutput output, string outputJson, ILogger logger)
+    private static void TryDenormalizeFields(CanonicalOutput output, string outputJson)
     {
         try
         {
@@ -443,37 +416,15 @@ public class ExtractionWorker : DistributedBackgroundService
                 output.CustomerCui = cCui.GetString();
             if (root.TryGetProperty("currency", out var currency))
                 output.Currency = currency.GetString();
-            if (root.TryGetProperty("total_amount", out var totalAmount) &&
-                totalAmount.TryGetDecimal(out var totalAmountVal))
-                output.TaxInclusiveAmount = totalAmountVal;
+            if (root.TryGetProperty("total_amount", out var total) &&
+                total.TryGetDecimal(out var totalVal))
+                output.TotalAmount = totalVal;
             if (root.TryGetProperty("vat_amount", out var vat) &&
                 vat.TryGetDecimal(out var vatVal))
                 output.VatAmount = vatVal;
-            if (root.TryGetProperty("totals", out var totals))
-            {
-                if (totals.TryGetProperty("tax_exclusive_amount", out var taxExcl) &&
-                    taxExcl.TryGetDecimal(out var taxExclVal))
-                    output.TaxExclusiveAmount = taxExclVal;
-                if (totals.TryGetProperty("vat_amount", out var totalsVat) &&
-                    totalsVat.TryGetDecimal(out var totalsVatVal))
-                    output.VatAmount = totalsVatVal;
-                if (totals.TryGetProperty("tax_inclusive_amount", out var taxIncl) &&
-                    taxIncl.TryGetDecimal(out var taxInclVal))
-                    output.TaxInclusiveAmount = taxInclVal;
-            }
-            if (root.TryGetProperty("discount", out var discount) &&
-                discount.TryGetDecimal(out var discountVal))
-                output.Discount = discountVal;
-            if (root.TryGetProperty("tax_note", out var taxNote))
-                output.TaxNote = taxNote.GetString();
-            if (root.TryGetProperty("tax_category", out var taxCategory))
-                output.TaxCategory = taxCategory.GetString();
-            if (root.TryGetProperty("swift_bic", out var swiftBic))
-                output.SwiftBic = swiftBic.GetString();
         }
-        catch (Exception ex)
+        catch
         {
-            logger.LogWarning(ex, "ExtractionWorker: failed to denormalize fields from OutputJson");
         }
     }
 }

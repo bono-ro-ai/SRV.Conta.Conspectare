@@ -21,13 +21,8 @@ public class CanonicalOutputMap : ClassMap<CanonicalOutput>
         Map(x => x.SupplierCui).Column("supplier_cui");
         Map(x => x.CustomerCui).Column("customer_cui");
         Map(x => x.Currency).Column("currency");
-        Map(x => x.TaxExclusiveAmount).Column("tax_exclusive_amount").Precision(18).Scale(4);
-        Map(x => x.TaxInclusiveAmount).Column("tax_inclusive_amount").Precision(18).Scale(4);
-        Map(x => x.VatAmount).Column("vat_amount").Precision(18).Scale(4);
-        Map(x => x.Discount).Column("discount").Precision(18).Scale(4);
-        Map(x => x.TaxNote).Column("tax_note").CustomSqlType("TEXT");
-        Map(x => x.TaxCategory).Column("tax_category").Length(50);
-        Map(x => x.SwiftBic).Column("swift_bic").Length(11);
+        Map(x => x.TotalAmount).Column("total_amount").Precision(15).Scale(2);
+        Map(x => x.VatAmount).Column("vat_amount").Precision(15).Scale(2);
         Map(x => x.ConsensusStrategy).Column("consensus_strategy");
         Map(x => x.WinningModelId).Column("winning_model_id");
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();

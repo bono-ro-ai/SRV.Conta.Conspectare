@@ -19,11 +19,7 @@ public record CanonicalInvoice(
     string SupplierCui,
     string CustomerCui,
     decimal? TotalAmount,
-    decimal? VatAmount,
-    decimal? Discount = null,
-    string TaxNote = null,
-    string TaxCategory = null,
-    string SwiftBic = null)
+    decimal? VatAmount)
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -55,6 +51,6 @@ public record CanonicalLineItem(
     decimal LineTotal);
 
 public record InvoiceTotals(
-    decimal TaxExclusiveAmount,
+    decimal Subtotal,
     decimal VatAmount,
-    decimal TaxInclusiveAmount);
+    decimal Total);

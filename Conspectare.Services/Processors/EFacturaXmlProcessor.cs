@@ -9,7 +9,7 @@ namespace Conspectare.Services.Processors;
 
 public class EFacturaXmlProcessor : IDocumentProcessor
 {
-    private const string SchemaVersion = "2.0.0";
+    private const string SchemaVersion = "1.0.0";
     private const string ModelId = "efactura_xml_parser";
     private const string PromptVersion = "n/a";
 
@@ -99,12 +99,12 @@ public class EFacturaXmlProcessor : IDocumentProcessor
         var totals = ParseTotals(legalMonetaryTotal);
 
         var lineTotalSum = lineItems.Sum(li => li.LineTotal);
-        if (totals != null && Math.Abs(lineTotalSum - totals.TaxExclusiveAmount) > 0.01m)
+        if (totals != null && Math.Abs(lineTotalSum - totals.Subtotal) > 0.01m)
         {
             reviewFlags.Add(new ReviewFlagInfo(
                 "inconsistent_totals",
                 "warning",
-                $"Sum of line totals ({lineTotalSum:F2}) does not match declared tax_exclusive_amount ({totals.TaxExclusiveAmount:F2})"));
+                $"Sum of line totals ({lineTotalSum:F2}) does not match declared subtotal ({totals.Subtotal:F2})"));
         }
 
         var paymentMeansCode = root.Element(Cac + "PaymentMeans")
@@ -128,7 +128,7 @@ public class EFacturaXmlProcessor : IDocumentProcessor
             Notes: notes,
             SupplierCui: supplier?.Cui,
             CustomerCui: customer?.Cui,
-            TotalAmount: totals?.TaxInclusiveAmount,
+            TotalAmount: totals?.Total,
             VatAmount: totals?.VatAmount);
 
         var outputJson = canonical.ToJson();
