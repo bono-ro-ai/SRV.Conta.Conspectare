@@ -305,5 +305,8 @@ FodyWeavers.xsd
 # Environment files
 .env
 
+# Dashboard (moved to Web.Conta.Conspectare)
+dashboard/
+
 # Claude settings
 /.claude/settings.local.json

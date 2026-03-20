@@ -44,13 +44,12 @@ The S3 bucket must be created manually in AWS:
 
 ## Dashboard Service
 
-The dashboard frontend is deployed as a separate Railway service alongside the API.
+The dashboard frontend lives in a **separate repository**: [`Web.Conta.Conspectare`](https://github.com/bono-ro-ai/Web.Conta.Conspectare).
 
 ### Railway Setup
 
-1. **Add a new service from GHCR** in the same Railway project — point it at `ghcr.io/<org>/srv.conta.conspectare-dashboard`.
-2. **Set the root directory** to `dashboard/` (Railway will find `dashboard/railway.toml` there).
-3. The dashboard serves static files via nginx on port 8080.
+1. **Add a new service from GHCR** in the same Railway project — point it at `ghcr.io/<org>/web.conta.conspectare`.
+2. The dashboard serves static files via nginx on port 8080.
 
 ### Environment Variables
 
@@ -60,13 +59,11 @@ The dashboard frontend is deployed as a separate Railway service alongside the A
 
 ### Health Check
 
-The dashboard exposes `GET /health` (unauthenticated, returns plain text `ok`). Railway is configured to probe this endpoint with a 30-second timeout via `dashboard/railway.toml`.
+The dashboard exposes `GET /health` (unauthenticated, returns plain text `ok`). Railway is configured to probe this endpoint with a 30-second timeout via `railway.toml`.
 
 ### CI/CD
 
-The `CI Dashboard` workflow (`.github/workflows/ci-dashboard.yml`) runs on changes to `dashboard/**`:
-- **On PR**: typecheck + build + Docker build
-- **On main push**: typecheck + build + Docker build + push to GHCR
+See `Web.Conta.Conspectare/.github/workflows/ci.yml`.
 
 ## Monitoring
 
