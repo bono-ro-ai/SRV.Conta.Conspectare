@@ -118,7 +118,7 @@ public class GeminiApiClient : ILlmApiClient
     {
         var parts = new List<JsonObject>();
         var contentType = doc.ContentType?.ToLowerInvariant() ?? "";
-        if (contentType.StartsWith("image/"))
+        if (contentType.StartsWith("image/") || contentType == "application/pdf")
         {
             using var ms = new MemoryStream();
             await rawFile.CopyToAsync(ms, ct);
@@ -129,7 +129,8 @@ public class GeminiApiClient : ILlmApiClient
                 "image/png" => "image/png",
                 "image/gif" => "image/gif",
                 "image/webp" => "image/webp",
-                _ => "image/jpeg"
+                "application/pdf" => "application/pdf",
+                _ => "application/octet-stream"
             };
             parts.Add(new JsonObject
             {

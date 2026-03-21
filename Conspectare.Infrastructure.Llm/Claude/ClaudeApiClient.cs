@@ -122,7 +122,23 @@ public class ClaudeApiClient : ILlmApiClient
     {
         var blocks = new List<JsonObject>();
         var contentType = doc.ContentType?.ToLowerInvariant() ?? "";
-        if (contentType.StartsWith("image/"))
+        if (contentType == "application/pdf")
+        {
+            using var ms = new MemoryStream();
+            await rawFile.CopyToAsync(ms, ct);
+            var base64 = Convert.ToBase64String(ms.ToArray());
+            blocks.Add(new JsonObject
+            {
+                ["type"] = "document",
+                ["source"] = new JsonObject
+                {
+                    ["type"] = "base64",
+                    ["media_type"] = "application/pdf",
+                    ["data"] = base64
+                }
+            });
+        }
+        else if (contentType.StartsWith("image/"))
         {
             using var ms = new MemoryStream();
             await rawFile.CopyToAsync(ms, ct);
