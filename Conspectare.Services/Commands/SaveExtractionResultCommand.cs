@@ -16,9 +16,32 @@ public class SaveExtractionResultCommand(
     {
         var merged = (Document)Session.Merge(document);
 
-        canonicalOutput.Document = merged;
-        canonicalOutput.DocumentId = merged.Id;
-        Session.Save(canonicalOutput);
+        var existingOutput = Session.QueryOver<CanonicalOutput>()
+            .Where(c => c.DocumentId == merged.Id)
+            .SingleOrDefault();
+        if (existingOutput != null)
+        {
+            existingOutput.SchemaVersion = canonicalOutput.SchemaVersion;
+            existingOutput.OutputJson = canonicalOutput.OutputJson;
+            existingOutput.InvoiceNumber = canonicalOutput.InvoiceNumber;
+            existingOutput.IssueDate = canonicalOutput.IssueDate;
+            existingOutput.DueDate = canonicalOutput.DueDate;
+            existingOutput.SupplierCui = canonicalOutput.SupplierCui;
+            existingOutput.CustomerCui = canonicalOutput.CustomerCui;
+            existingOutput.Currency = canonicalOutput.Currency;
+            existingOutput.TotalAmount = canonicalOutput.TotalAmount;
+            existingOutput.VatAmount = canonicalOutput.VatAmount;
+            existingOutput.ConsensusStrategy = canonicalOutput.ConsensusStrategy;
+            existingOutput.WinningModelId = canonicalOutput.WinningModelId;
+            existingOutput.CreatedAt = canonicalOutput.CreatedAt;
+            Session.Update(existingOutput);
+        }
+        else
+        {
+            canonicalOutput.Document = merged;
+            canonicalOutput.DocumentId = merged.Id;
+            Session.Save(canonicalOutput);
+        }
 
         if (artifact != null)
         {
