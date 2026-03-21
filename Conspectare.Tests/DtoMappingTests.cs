@@ -193,7 +193,7 @@ public class DtoMappingTests
     }
 
     [Fact]
-    public void DocumentResponse_FromEntity_NonCompletedStatus_ExcludesCanonicalOutput()
+    public void DocumentResponse_FromEntity_AnyStatus_IncludesCanonicalOutput()
     {
         var document = CreateTestDocument();
         document.Status = DocumentStatus.PendingTriage;
@@ -206,7 +206,7 @@ public class DtoMappingTests
 
         var result = DocumentResponse.FromEntity(document, _workflow);
 
-        Assert.Null(result.CanonicalOutputJson);
+        Assert.Equal("{\"invoiceNumber\":\"INV-001\"}", result.CanonicalOutputJson);
     }
 
     [Fact]
