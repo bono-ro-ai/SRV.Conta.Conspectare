@@ -349,7 +349,9 @@ public class GeminiApiClient : ILlmApiClient
                     ["delivery_date"] = new JsonObject { ["type"] = "string", ["description"] = "Data livrării / prestării — ISO 8601" },
                     ["currency"] = new JsonObject { ["type"] = "string", ["description"] = "ISO 4217 (RON, EUR, USD)" },
                     ["exchange_rate"] = new JsonObject { ["type"] = "number", ["description"] = "Curs valutar BNR la data facturii (dacă moneda ≠ RON)" },
-                    ["document_type"] = new JsonObject { ["type"] = "string", ["description"] = "Tip document: factura, factura_proforma, aviz, chitanta, bon_fiscal, nota_de_credit, nota_de_debit" },
+                    ["document_type"] = new JsonObject { ["type"] = "string", ["description"] = "Tip document standardizat: invoice, receipt, unknown" },
+                    ["raw_document_type"] = new JsonObject { ["type"] = "string", ["description"] = "Tipul documentului exact cum apare scris pe document (ex: FACTURĂ FISCALĂ, TAX INVOICE, BON FISCAL, FACTURA PROFORMA)" },
+                    ["document_language"] = new JsonObject { ["type"] = "string", ["description"] = "Limba documentului — cod ISO 639-1 de 2 litere (ro, en, fr, de, it, es, etc.)" },
                     ["line_items"] = new JsonObject
                     {
                         ["type"] = "array",

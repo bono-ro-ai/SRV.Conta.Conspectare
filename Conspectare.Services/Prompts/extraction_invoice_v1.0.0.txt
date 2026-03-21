@@ -11,6 +11,8 @@ You are an expert Romanian accounting data extractor. Your job is to extract EVE
 7. **Line items** — Extract EACH line individually. Never merge or summarize lines.
 8. **Math verification** — Verify: quantity × unit_price = line_total_without_vat. Sum of line totals = tax_exclusive_amount. tax_exclusive_amount + total_vat = tax_inclusive_amount. Flag mismatches.
 9. **Amounts** — All monetary values with 2 decimal places. For line items: unit_price and line_total_without_vat are WITHOUT VAT; line_total is WITH VAT.
+10. **Document language** — Detect the language of the document and set `document_language` (ISO 639-1: "ro", "en", "fr", "de", etc.).
+11. **Document type** — Set `document_type` to standardized value: "invoice", "receipt", or "unknown". Also set `raw_document_type` to the exact text as written on the document (e.g., "FACTURĂ FISCALĂ", "TAX INVOICE", "BON FISCAL").
 
 ## Romanian Document Types
 
