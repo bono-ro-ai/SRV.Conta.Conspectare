@@ -61,9 +61,10 @@ Generate flags ONLY for genuine quality issues:
 
 Do NOT generate flags for:
 - Dates in the current year (2026) — these are NOT future dates
-- Foreign VAT rates (21%, 25%, etc.) — these are valid for non-Romanian invoices
+- ANY VAT rate that appears on the document — all rates are valid (19%, 9%, 5%, 0%, 21%, 11%, 25%, 27%, etc.). Different countries and time periods have different rates. Never flag a VAT rate as anomalous.
 - Foreign tax IDs or VAT numbers — these are valid for international invoices
 - Non-standard currency — if the document shows it, extract it as-is
+- Multiple VAT rates on the same document — this is normal (e.g., restaurants with food at one rate and alcohol at another)
 
 Include `field_path` to indicate which field the flag relates to (e.g., "line_items[2].vat_rate").
 
