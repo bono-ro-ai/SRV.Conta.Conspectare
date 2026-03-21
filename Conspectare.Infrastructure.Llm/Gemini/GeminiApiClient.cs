@@ -298,10 +298,32 @@ public class GeminiApiClient : ILlmApiClient
     }
     private static JsonObject BuildExtractionFunctionDeclaration()
     {
+        var partyProperties = new Func<bool, JsonObject>(includeBank => {
+            var props = new JsonObject
+            {
+                ["name"] = new JsonObject { ["type"] = "string", ["description"] = "Denumire completă (conform act constitutiv)" },
+                ["tax_id"] = new JsonObject { ["type"] = "string", ["description"] = "CUI/CIF, cu sau fără prefix RO" },
+                ["vat_registered"] = new JsonObject { ["type"] = "boolean", ["description"] = "Plătitor de TVA (true dacă are prefix RO la CUI)" },
+                ["trade_register_number"] = new JsonObject { ["type"] = "string", ["description"] = "Nr. Reg. Com. (ex: J40/1234/2020 sau F40/1234/2020)" },
+                ["address"] = new JsonObject { ["type"] = "string", ["description"] = "Adresa completă (stradă, nr, bloc, scara, etaj, apartament)" },
+                ["city"] = new JsonObject { ["type"] = "string", ["description"] = "Localitate / Oraș" },
+                ["county"] = new JsonObject { ["type"] = "string", ["description"] = "Județ" },
+                ["country_code"] = new JsonObject { ["type"] = "string", ["description"] = "ISO 3166-1 alpha-2 (default RO)" },
+                ["phone"] = new JsonObject { ["type"] = "string", ["description"] = "Telefon" },
+                ["email"] = new JsonObject { ["type"] = "string", ["description"] = "Email" }
+            };
+            if (includeBank)
+            {
+                props["bank_account"] = new JsonObject { ["type"] = "string", ["description"] = "IBAN" };
+                props["bank_name"] = new JsonObject { ["type"] = "string", ["description"] = "Denumire bancă" };
+                props["swift_bic"] = new JsonObject { ["type"] = "string", ["description"] = "SWIFT/BIC code" };
+            }
+            return props;
+        });
         return new JsonObject
         {
             ["name"] = "extract_invoice_data",
-            ["description"] = "Extract structured accounting data from the document",
+            ["description"] = "Extract all structured accounting data from a Romanian invoice/receipt into the canonical schema. Be exhaustive — extract every field present in the document.",
             ["parameters"] = new JsonObject
             {
                 ["type"] = "object",
@@ -310,76 +332,101 @@ public class GeminiApiClient : ILlmApiClient
                     ["supplier"] = new JsonObject
                     {
                         ["type"] = "object",
-                        ["properties"] = new JsonObject
-                        {
-                            ["name"] = new JsonObject { ["type"] = "string" },
-                            ["tax_id"] = new JsonObject { ["type"] = "string" },
-                            ["trade_register_number"] = new JsonObject { ["type"] = "string" },
-                            ["address"] = new JsonObject { ["type"] = "string" },
-                            ["city"] = new JsonObject { ["type"] = "string" },
-                            ["county"] = new JsonObject { ["type"] = "string" },
-                            ["country_code"] = new JsonObject { ["type"] = "string" },
-                            ["bank_account"] = new JsonObject { ["type"] = "string" },
-                            ["bank_name"] = new JsonObject { ["type"] = "string" }
-                        }
+                        ["description"] = "Furnizor / Emitent",
+                        ["properties"] = partyProperties(true)
                     },
                     ["customer"] = new JsonObject
                     {
                         ["type"] = "object",
-                        ["properties"] = new JsonObject
-                        {
-                            ["name"] = new JsonObject { ["type"] = "string" },
-                            ["tax_id"] = new JsonObject { ["type"] = "string" },
-                            ["trade_register_number"] = new JsonObject { ["type"] = "string" },
-                            ["address"] = new JsonObject { ["type"] = "string" },
-                            ["city"] = new JsonObject { ["type"] = "string" },
-                            ["county"] = new JsonObject { ["type"] = "string" },
-                            ["country_code"] = new JsonObject { ["type"] = "string" }
-                        }
+                        ["description"] = "Client / Cumpărător / Beneficiar",
+                        ["properties"] = partyProperties(true)
                     },
-                    ["invoice_number"] = new JsonObject { ["type"] = "string" },
-                    ["invoice_date"] = new JsonObject { ["type"] = "string", ["description"] = "ISO 8601 date" },
-                    ["due_date"] = new JsonObject { ["type"] = "string", ["description"] = "ISO 8601 date" },
-                    ["currency"] = new JsonObject { ["type"] = "string" },
+                    ["invoice_number"] = new JsonObject { ["type"] = "string", ["description"] = "Număr factură complet cu seria (ex: ABC 0001234)" },
+                    ["invoice_series"] = new JsonObject { ["type"] = "string", ["description"] = "Seria facturii separat (ex: ABC, DF-B, FCT)" },
+                    ["invoice_date"] = new JsonObject { ["type"] = "string", ["description"] = "Data emiterii — ISO 8601 (YYYY-MM-DD)" },
+                    ["due_date"] = new JsonObject { ["type"] = "string", ["description"] = "Data scadentă — ISO 8601" },
+                    ["delivery_date"] = new JsonObject { ["type"] = "string", ["description"] = "Data livrării / prestării — ISO 8601" },
+                    ["currency"] = new JsonObject { ["type"] = "string", ["description"] = "ISO 4217 (RON, EUR, USD)" },
+                    ["exchange_rate"] = new JsonObject { ["type"] = "number", ["description"] = "Curs valutar BNR la data facturii (dacă moneda ≠ RON)" },
+                    ["document_type"] = new JsonObject { ["type"] = "string", ["description"] = "Tip document: factura, factura_proforma, aviz, chitanta, bon_fiscal, nota_de_credit, nota_de_debit" },
                     ["line_items"] = new JsonObject
                     {
                         ["type"] = "array",
+                        ["description"] = "Produse / Servicii / Linii factură",
                         ["items"] = new JsonObject
                         {
                             ["type"] = "object",
                             ["properties"] = new JsonObject
                             {
-                                ["description"] = new JsonObject { ["type"] = "string" },
-                                ["quantity"] = new JsonObject { ["type"] = "number" },
-                                ["unit"] = new JsonObject { ["type"] = "string" },
-                                ["unit_price"] = new JsonObject { ["type"] = "number" },
-                                ["vat_rate"] = new JsonObject { ["type"] = "number" },
-                                ["vat_amount"] = new JsonObject { ["type"] = "number" },
-                                ["line_total"] = new JsonObject { ["type"] = "number" }
+                                ["line_number"] = new JsonObject { ["type"] = "integer", ["description"] = "Nr. crt." },
+                                ["product_code"] = new JsonObject { ["type"] = "string", ["description"] = "Cod produs / SKU" },
+                                ["description"] = new JsonObject { ["type"] = "string", ["description"] = "Descriere produs/serviciu" },
+                                ["quantity"] = new JsonObject { ["type"] = "number", ["description"] = "Cantitate" },
+                                ["unit"] = new JsonObject { ["type"] = "string", ["description"] = "U.M. (buc, kg, ore, m², l, km, zi, luna)" },
+                                ["unit_price"] = new JsonObject { ["type"] = "number", ["description"] = "Preț unitar FĂRĂ TVA" },
+                                ["unit_price_with_vat"] = new JsonObject { ["type"] = "number", ["description"] = "Preț unitar CU TVA (dacă facturat incluzând TVA)" },
+                                ["discount_percent"] = new JsonObject { ["type"] = "number", ["description"] = "Discount % pe linie" },
+                                ["discount_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Valoare discount pe linie" },
+                                ["line_total_without_vat"] = new JsonObject { ["type"] = "number", ["description"] = "Valoare linie FĂRĂ TVA" },
+                                ["vat_rate"] = new JsonObject { ["type"] = "number", ["description"] = "Cotă TVA: 19, 9, 5, 0" },
+                                ["vat_category"] = new JsonObject { ["type"] = "string", ["description"] = "Categorie TVA: S (standard), AE (scutit cu drept de deducere), E (scutit fără drept), Z (cotă zero), O (neimpozabil)" },
+                                ["vat_amount"] = new JsonObject { ["type"] = "number", ["description"] = "TVA pe linie" },
+                                ["line_total"] = new JsonObject { ["type"] = "number", ["description"] = "Total linie CU TVA" }
                             }
                         }
                     },
-                    ["subtotal"] = new JsonObject { ["type"] = "number" },
-                    ["total_vat"] = new JsonObject { ["type"] = "number" },
-                    ["total"] = new JsonObject { ["type"] = "number" },
-                    ["payment_method"] = new JsonObject { ["type"] = "string" },
-                    ["notes"] = new JsonObject { ["type"] = "string" },
-                    ["review_flags"] = new JsonObject
+                    ["discount"] = new JsonObject { ["type"] = "number", ["description"] = "Discount global (valoare)" },
+                    ["discount_percent"] = new JsonObject { ["type"] = "number", ["description"] = "Discount global %" },
+                    ["tax_exclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Total FĂRĂ TVA (baza impozabilă)" },
+                    ["total_vat"] = new JsonObject { ["type"] = "number", ["description"] = "Total TVA" },
+                    ["tax_inclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Total CU TVA (total de plată)" },
+                    ["vat_breakdown"] = new JsonObject
                     {
                         ["type"] = "array",
+                        ["description"] = "Detaliere TVA pe cote",
                         ["items"] = new JsonObject
                         {
                             ["type"] = "object",
                             ["properties"] = new JsonObject
                             {
-                                ["flag_type"] = new JsonObject { ["type"] = "string" },
+                                ["vat_rate"] = new JsonObject { ["type"] = "number" },
+                                ["vat_category"] = new JsonObject { ["type"] = "string" },
+                                ["taxable_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Baza impozabilă pentru cota respectivă" },
+                                ["vat_amount"] = new JsonObject { ["type"] = "number", ["description"] = "TVA calculat" }
+                            }
+                        }
+                    },
+                    ["payment_method"] = new JsonObject { ["type"] = "string", ["description"] = "Modalitate plată: transfer_bancar, numerar, card, cec, bilet_la_ordin, compensare" },
+                    ["payment_reference"] = new JsonObject { ["type"] = "string", ["description"] = "Referință plată (nr. OP, nr. chitanță)" },
+                    ["payment_terms"] = new JsonObject { ["type"] = "string", ["description"] = "Condiții de plată (ex: 30 zile de la emitere)" },
+                    ["contract_reference"] = new JsonObject { ["type"] = "string", ["description"] = "Nr. contract / comandă" },
+                    ["delivery_note_number"] = new JsonObject { ["type"] = "string", ["description"] = "Nr. aviz de însoțire" },
+                    ["transport_details"] = new JsonObject { ["type"] = "string", ["description"] = "Detalii transport (nr. auto, delegat)" },
+                    ["stamp_duty"] = new JsonObject { ["type"] = "number", ["description"] = "Taxă de timbru (dacă există)" },
+                    ["penalties"] = new JsonObject { ["type"] = "number", ["description"] = "Penalități / majorări de întârziere" },
+                    ["tax_note"] = new JsonObject { ["type"] = "string", ["description"] = "Mențiuni fiscale (scutire TVA, taxare inversă, regim special, etc.)" },
+                    ["notes"] = new JsonObject { ["type"] = "string", ["description"] = "Observații, mențiuni suplimentare" },
+                    ["is_reverse_charge"] = new JsonObject { ["type"] = "boolean", ["description"] = "Taxare inversă (TVA datorat de beneficiar)" },
+                    ["is_self_billing"] = new JsonObject { ["type"] = "boolean", ["description"] = "Autofacturare" },
+                    ["credit_note_reference"] = new JsonObject { ["type"] = "string", ["description"] = "Nr. factură originală (dacă e notă de credit/storno)" },
+                    ["review_flags"] = new JsonObject
+                    {
+                        ["type"] = "array",
+                        ["description"] = "Semnalizări calitate date — generează pentru orice problemă detectată",
+                        ["items"] = new JsonObject
+                        {
+                            ["type"] = "object",
+                            ["properties"] = new JsonObject
+                            {
+                                ["flag_type"] = new JsonObject { ["type"] = "string", ["description"] = "missing_field, calculation_mismatch, format_anomaly, low_confidence, duplicate_suspicion" },
                                 ["severity"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("info", "warning", "error") },
-                                ["message"] = new JsonObject { ["type"] = "string" }
+                                ["message"] = new JsonObject { ["type"] = "string" },
+                                ["field_path"] = new JsonObject { ["type"] = "string", ["description"] = "Câmpul la care se referă (ex: supplier.tax_id, line_items[0].vat_rate)" }
                             }
                         }
                     }
                 },
-                ["required"] = new JsonArray("invoice_number", "invoice_date", "currency", "line_items", "total")
+                ["required"] = new JsonArray("invoice_number", "invoice_date", "currency", "line_items", "tax_exclusive_amount", "total_vat", "tax_inclusive_amount", "supplier", "customer")
             }
         };
     }
