@@ -52,7 +52,7 @@ public record DocumentResponse(
             .AsReadOnly()
             ?? (IReadOnlyList<ExtractionAttemptResponse>)Array.Empty<ExtractionAttemptResponse>();
 
-        var canonicalJson = externalStatus == "completed" ? document.CanonicalOutput?.OutputJson : null;
+        var canonicalJson = document.CanonicalOutput?.OutputJson;
 
         return new DocumentResponse(
             document.Id,
