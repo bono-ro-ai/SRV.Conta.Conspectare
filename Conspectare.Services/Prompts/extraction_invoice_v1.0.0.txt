@@ -47,14 +47,23 @@ If the document shows a VAT summary table (recapitulație TVA), extract each row
 - `taxable_amount` — baza impozabilă for that rate
 - `vat_amount` — TVA calculated
 
+## Critical: Extract First, Flag Second
+
+ALWAYS extract ALL available data, regardless of any anomalies. Review flags are supplementary quality signals — they NEVER prevent extraction. Extract everything you can see in the document, then add flags for issues.
+
 ## Review Flags
 
-Generate flags for quality issues:
-- `missing_field` — A required or commonly-present field is absent
+Generate flags ONLY for genuine quality issues:
+- `missing_field` — A required field (invoice_number, invoice_date, supplier.name, supplier.tax_id, currency) is completely absent from the document
 - `calculation_mismatch` — Math doesn't add up (with tolerance ±0.02 per line, ±1.00 for totals)
-- `format_anomaly` — Unusual format or value (e.g., negative quantity, future date, unknown VAT rate)
-- `low_confidence` — You extracted a value but are unsure about accuracy
-- `duplicate_suspicion` — Same invoice number/date/amount combination suggests a duplicate
+- `format_anomaly` — Genuinely unusual format (e.g., negative quantity, negative total, unrecognizable date format)
+- `low_confidence` — You extracted a value but are genuinely unsure about accuracy (e.g., blurry text, ambiguous characters)
+
+Do NOT generate flags for:
+- Dates in the current year (2026) — these are NOT future dates
+- Foreign VAT rates (21%, 25%, etc.) — these are valid for non-Romanian invoices
+- Foreign tax IDs or VAT numbers — these are valid for international invoices
+- Non-standard currency — if the document shows it, extract it as-is
 
 Include `field_path` to indicate which field the flag relates to (e.g., "line_items[2].vat_rate").
 
