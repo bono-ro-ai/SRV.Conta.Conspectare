@@ -45,43 +45,61 @@ public class VatValidationService
 
         if (!string.IsNullOrWhiteSpace(supplierCui))
         {
-            try
+            if (IsRomanianCui(supplierCui))
             {
-                var result = await _anafClient.ValidateCuiAsync(supplierCui, ct);
-                validationResults.Add(("supplier", result));
+                try
+                {
+                    var result = await _anafClient.ValidateCuiAsync(supplierCui, ct);
+                    validationResults.Add(("supplier", result));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "VatValidationService: ANAF validation failed for supplier CUI {Cui} on document {DocumentId}",
+                        supplierCui, document.Id);
+                    validationResults.Add(("supplier", new AnafValidationResult(
+                        IsValid: false,
+                        Cui: supplierCui,
+                        CompanyName: null,
+                        IsInactive: false,
+                        ValidationError: "ANAF API request failed")));
+                }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogWarning(ex,
-                    "VatValidationService: ANAF validation failed for supplier CUI {Cui} on document {DocumentId}",
+                _logger.LogInformation(
+                    "VatValidationService: skipping ANAF validation for non-Romanian supplier CUI {Cui} on document {DocumentId}",
                     supplierCui, document.Id);
-                validationResults.Add(("supplier", new AnafValidationResult(
-                    IsValid: false,
-                    Cui: supplierCui,
-                    CompanyName: null,
-                    IsInactive: false,
-                    ValidationError: "ANAF validation unavailable")));
             }
         }
 
         if (!string.IsNullOrWhiteSpace(customerCui))
         {
-            try
+            if (IsRomanianCui(customerCui))
             {
-                var result = await _anafClient.ValidateCuiAsync(customerCui, ct);
-                validationResults.Add(("customer", result));
+                try
+                {
+                    var result = await _anafClient.ValidateCuiAsync(customerCui, ct);
+                    validationResults.Add(("customer", result));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "VatValidationService: ANAF validation failed for customer CUI {Cui} on document {DocumentId}",
+                        customerCui, document.Id);
+                    validationResults.Add(("customer", new AnafValidationResult(
+                        IsValid: false,
+                        Cui: customerCui,
+                        CompanyName: null,
+                        IsInactive: false,
+                        ValidationError: "ANAF API request failed")));
+                }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogWarning(ex,
-                    "VatValidationService: ANAF validation failed for customer CUI {Cui} on document {DocumentId}",
+                _logger.LogInformation(
+                    "VatValidationService: skipping ANAF validation for non-Romanian customer CUI {Cui} on document {DocumentId}",
                     customerCui, document.Id);
-                validationResults.Add(("customer", new AnafValidationResult(
-                    IsValid: false,
-                    Cui: customerCui,
-                    CompanyName: null,
-                    IsInactive: false,
-                    ValidationError: "ANAF validation unavailable")));
             }
         }
 
@@ -93,6 +111,14 @@ public class VatValidationService
                 ? "VatValidationService: document {DocumentId} VAT validation completed with issues"
                 : "VatValidationService: document {DocumentId} VAT validation passed — all CUIs valid",
             document.Id);
+    }
+
+    private static bool IsRomanianCui(string cui)
+    {
+        var normalized = cui.Trim();
+        if (normalized.StartsWith("RO", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized[2..];
+        return normalized.Length >= 2 && normalized.Length <= 10 && normalized.All(char.IsDigit);
     }
 
     protected virtual void SaveValidationResults(
