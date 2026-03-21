@@ -14,29 +14,27 @@ public static class WebhookEnqueuer
         DocumentStatus.ReviewRequired,
     };
 
-    public static void EnqueueIfNeeded(Document doc, ApiClient client, DateTime utcNow)
+    public static void EnqueueIfNeeded(Document doc, ApiClient client, DateTime utcNow,
+        CanonicalOutput canonicalOutput = null, IList<ReviewFlag> reviewFlags = null)
     {
         if (!WebhookEligibleStatuses.Contains(doc.Status))
             return;
-
         if (string.IsNullOrWhiteSpace(client?.WebhookUrl))
             return;
-
-        var payloadJson = WebhookPayloadBuilder.Build(doc, utcNow);
-
+        var payloadJson = WebhookPayloadBuilder.Build(doc, utcNow, canonicalOutput, reviewFlags);
         var delivery = new WebhookDelivery
         {
             DocumentId = doc.Id,
             TenantId = doc.TenantId,
             WebhookUrl = client.WebhookUrl,
             PayloadJson = payloadJson,
+            WebhookSecret = client.WebhookSecret,
             Status = "pending",
             AttemptCount = 0,
             MaxAttempts = 3,
             CreatedAt = utcNow,
             UpdatedAt = utcNow,
         };
-
         new SaveWebhookDeliveryCommand(delivery).Execute();
     }
 }

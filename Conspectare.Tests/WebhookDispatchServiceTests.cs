@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Conspectare.Domain.Entities;
 using Conspectare.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -163,6 +165,34 @@ public class WebhookDispatchServiceTests
 
         Assert.Single(handler.Requests);
         Assert.Contains("document.status_changed", handler.Requests[0]);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_WithWebhookSecret_AddsHmacHeader()
+    {
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, "{}");
+        var service = CreateService(handler);
+        var delivery = CreateDelivery();
+        delivery.WebhookSecret = "test-secret-key";
+        await service.DispatchAsync(delivery, CancellationToken.None);
+        Assert.True(handler.RequestHeaders.ContainsKey("X-Webhook-Signature"));
+        var signature = handler.RequestHeaders["X-Webhook-Signature"];
+        Assert.StartsWith("sha256=", signature);
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes("test-secret-key"));
+        var expectedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(delivery.PayloadJson));
+        var expectedSignature = "sha256=" + Convert.ToHexString(expectedHash).ToLowerInvariant();
+        Assert.Equal(expectedSignature, signature);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_WithoutWebhookSecret_NoHmacHeader()
+    {
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, "{}");
+        var service = CreateService(handler);
+        var delivery = CreateDelivery();
+        delivery.WebhookSecret = null;
+        await service.DispatchAsync(delivery, CancellationToken.None);
+        Assert.False(handler.RequestHeaders.ContainsKey("X-Webhook-Signature"));
     }
 }
 
