@@ -183,17 +183,21 @@ public class ExtractionWorker : DistributedBackgroundService
             "ExtractionWorker: document {DocumentId} extracted -> {NextStatus} " +
             "(schema={SchemaVersion}, flags={FlagCount})",
             doc.Id, nextStatus, result.SchemaVersion, result.ReviewFlags?.Count ?? 0);
-        try
+        // VAT validation runs async — does not block extraction pipeline
+        doc.CanonicalOutput = canonicalOutput;
+        _ = Task.Run(async () =>
         {
-            doc.CanonicalOutput = canonicalOutput;
-            await vatValidationService.ValidateDocumentAsync(doc, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex,
-                "ExtractionWorker: VAT validation failed for document {DocumentId}, continuing",
-                doc.Id);
-        }
+            try
+            {
+                await vatValidationService.ValidateDocumentAsync(doc, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "ExtractionWorker: async VAT validation failed for document {DocumentId}",
+                    doc.Id);
+            }
+        }, ct);
     }
     private static async Task ProcessDocumentMultiModelAsync(
         Document doc,
@@ -316,17 +320,20 @@ public class ExtractionWorker : DistributedBackgroundService
             "ExtractionWorker: document {DocumentId} multi-model extracted -> {NextStatus} " +
             "(strategy={Strategy}, winner={Winner}, providers={ProviderCount})",
             doc.Id, nextStatus, consensus.StrategyUsed, consensus.WinningProviderKey, consensus.AllResults.Count);
-        try
+        doc.CanonicalOutput = canonicalOutput;
+        _ = Task.Run(async () =>
         {
-            doc.CanonicalOutput = canonicalOutput;
-            await vatValidationService.ValidateDocumentAsync(doc, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex,
-                "ExtractionWorker: VAT validation failed for document {DocumentId}, continuing",
-                doc.Id);
-        }
+            try
+            {
+                await vatValidationService.ValidateDocumentAsync(doc, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "ExtractionWorker: async VAT validation failed for document {DocumentId}",
+                    doc.Id);
+            }
+        }, ct);
     }
     private static void HandleExtractionError(
         Document doc,

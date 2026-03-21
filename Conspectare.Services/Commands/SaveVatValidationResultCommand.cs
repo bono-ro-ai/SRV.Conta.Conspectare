@@ -32,8 +32,8 @@ public class SaveVatValidationResultCommand(
                     DocumentId = merged.Id,
                     TenantId = merged.TenantId,
                     FlagType = flagType,
-                    Severity = "high",
-                    Message = result.ValidationError ?? $"CUI '{result.Cui}' is not valid in ANAF registry",
+                    Severity = "warning",
+                    Message = result.ValidationError ?? $"CUI '{result.Cui}' nu a fost validat în registrul ANAF",
                     IsResolved = false,
                     CreatedAt = utcNow
                 };
@@ -53,8 +53,8 @@ public class SaveVatValidationResultCommand(
                     DocumentId = merged.Id,
                     TenantId = merged.TenantId,
                     FlagType = flagType,
-                    Severity = "medium",
-                    Message = $"Company '{result.CompanyName ?? result.Cui}' (CUI: {result.Cui}) is marked as inactive in ANAF registry",
+                    Severity = "warning",
+                    Message = $"Compania '{result.CompanyName ?? result.Cui}' (CUI: {result.Cui}) apare inactivă în registrul ANAF",
                     IsResolved = false,
                     CreatedAt = utcNow
                 };
