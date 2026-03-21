@@ -1,10 +1,10 @@
 using Conspectare.Domain.Entities;
-using Conspectare.Services.Core.Database;
+using Conspectare.Services.Commands;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 using Conspectare.Services.Interfaces;
+using Conspectare.Services.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using NHibernate.Criterion;
 namespace Conspectare.Workers;
 public class VatRetryWorker : DistributedBackgroundService
 {
@@ -69,37 +69,5 @@ public class VatRetryWorker : DistributedBackgroundService
         if (colonIdx >= 0 && colonIdx < msg.Length - 1)
             return msg[(colonIdx + 1)..].Trim();
         return null;
-    }
-}
-public class FindFailedVatFlagsQuery(int batchSize) : NHibernateConspectareQuery<IList<ReviewFlag>>
-{
-    protected override IList<ReviewFlag> OnExecute()
-    {
-        return Session.QueryOver<ReviewFlag>()
-            .Where(f => f.IsResolved == false)
-            .And(f => f.FlagType == "invalid_supplier_cui" || f.FlagType == "invalid_customer_cui")
-            .And(Restrictions.Like("Message", "%API%"))
-            .OrderBy(f => f.CreatedAt).Asc
-            .Take(batchSize)
-            .List();
-    }
-}
-public class ResolveVatFlagCommand(ReviewFlag flag, AnafValidationResult result) : NHibernateConspectareCommand
-{
-    protected override void OnExecute()
-    {
-        var merged = (ReviewFlag)Session.Merge(flag);
-        merged.IsResolved = true;
-        merged.ResolvedAt = DateTime.UtcNow;
-        merged.Message = $"Validat: {result.CompanyName ?? result.Cui} — CUI activ în registrul ANAF";
-        merged.Severity = "info";
-    }
-}
-public class UpdateVatFlagMessageCommand(ReviewFlag flag, string newMessage) : NHibernateConspectareCommand
-{
-    protected override void OnExecute()
-    {
-        var merged = (ReviewFlag)Session.Merge(flag);
-        merged.Message = newMessage;
     }
 }
