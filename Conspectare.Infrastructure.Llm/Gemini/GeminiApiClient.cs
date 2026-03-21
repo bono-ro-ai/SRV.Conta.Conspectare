@@ -47,7 +47,8 @@ public class GeminiApiClient : ILlmApiClient
         });
         var functionDeclaration = BuildTriageFunctionDeclaration();
         var requestBody = BuildRequestBody(parts, new[] { functionDeclaration }, "classify_document");
-        var response = await SendWithRetryAsync(requestBody, ct);
+        var triageModel = string.IsNullOrEmpty(_settings.TriageModel) ? null : _settings.TriageModel;
+        var response = await SendWithRetryAsync(requestBody, ct, triageModel);
         sw.Stop();
         var (args, usage) = ParseFunctionCallResponse(response, "classify_document");
         _metrics.RecordLlmCallDuration("gemini", "triage", sw.ElapsedMilliseconds);
@@ -62,7 +63,7 @@ public class GeminiApiClient : ILlmApiClient
             DocumentType: documentType,
             Confidence: confidence,
             IsAccountingRelevant: isAccountingRelevant,
-            ModelId: _settings.Model,
+            ModelId: triageModel ?? _settings.Model,
             PromptVersion: promptVersion,
             InputTokens: usage.InputTokens,
             OutputTokens: usage.OutputTokens,
@@ -188,10 +189,11 @@ public class GeminiApiClient : ILlmApiClient
             }
         };
     }
-    internal async Task<JsonObject> SendWithRetryAsync(JsonObject requestBody, CancellationToken ct)
+    internal async Task<JsonObject> SendWithRetryAsync(JsonObject requestBody, CancellationToken ct, string modelOverride = null)
     {
         var maxRetries = _settings.MaxRetries;
-        var url = $"/v1beta/models/{_settings.Model}:generateContent";
+        var model = modelOverride ?? _settings.Model;
+        var url = $"/v1beta/models/{model}:generateContent";
         for (var attempt = 0; attempt <= maxRetries; attempt++)
         {
             using var content = new StringContent(
