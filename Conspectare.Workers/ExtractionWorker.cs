@@ -98,7 +98,8 @@ public class ExtractionWorker : DistributedBackgroundService
             return;
         }
         var hasReviewFlags = result.ReviewFlags is { Count: > 0 };
-        var nextStatus = hasReviewFlags
+        var hasErrorFlags = result.ReviewFlags?.Any(f => f.Severity == "error") ?? false;
+        var nextStatus = hasErrorFlags
             ? DocumentStatus.ReviewRequired
             : DocumentStatus.Completed;
         if (!workflow.CanTransition(DocumentStatus.Extracting, nextStatus))
@@ -227,7 +228,8 @@ public class ExtractionWorker : DistributedBackgroundService
         }
         var winningResult = consensus.WinningResult;
         var hasReviewFlags = winningResult.ReviewFlags is { Count: > 0 };
-        var nextStatus = hasReviewFlags
+        var hasErrorFlags = winningResult.ReviewFlags?.Any(f => f.Severity == "error") ?? false;
+        var nextStatus = hasErrorFlags
             ? DocumentStatus.ReviewRequired
             : DocumentStatus.Completed;
         if (!workflow.CanTransition(DocumentStatus.Extracting, nextStatus))
