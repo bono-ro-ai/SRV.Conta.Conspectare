@@ -11,6 +11,7 @@ public class ApiClient
     public virtual int RateLimitPerMin { get; set; }
     public virtual int MaxFileSizeMb { get; set; }
     public virtual string WebhookUrl { get; set; }
+    public virtual string WebhookSecret { get; set; }
     public virtual DateTime CreatedAt { get; set; }
     public virtual DateTime UpdatedAt { get; set; }
 }

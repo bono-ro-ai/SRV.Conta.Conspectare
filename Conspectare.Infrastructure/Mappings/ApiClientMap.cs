@@ -19,6 +19,7 @@ public class ApiClientMap : ClassMap<ApiClient>
         Map(x => x.RateLimitPerMin).Column("rate_limit_per_min").Not.Nullable();
         Map(x => x.MaxFileSizeMb).Column("max_file_size_mb").Not.Nullable();
         Map(x => x.WebhookUrl).Column("webhook_url").Length(500);
+        Map(x => x.WebhookSecret).Column("webhook_secret").Length(128);
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();
         Map(x => x.UpdatedAt).Column("updated_at").Not.Nullable();
     }
