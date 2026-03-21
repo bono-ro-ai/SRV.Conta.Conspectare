@@ -106,5 +106,6 @@ internal static class DependencyInjection
         services.AddHostedService<TriageWorker>();
         services.AddHostedService<ExtractionWorker>();
         services.AddHostedService<WebhookWorker>();
+        services.AddHostedService<VatRetryWorker>();
     }
 }
