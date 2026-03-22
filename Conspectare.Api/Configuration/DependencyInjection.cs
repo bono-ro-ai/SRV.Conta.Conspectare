@@ -174,12 +174,13 @@ internal static class DependencyInjection
             {
                 OnTokenValidated = context =>
                 {
+                    var tenantContext = context.HttpContext.RequestServices.GetRequiredService<ITenantContext>();
+                    var roleClaim = context.Principal?.FindFirst("role")?.Value;
+                    if (roleClaim == "admin")
+                        tenantContext.IsAdmin = true;
                     var tenantIdClaim = context.Principal?.FindFirst("tenantId")?.Value;
                     if (tenantIdClaim != null && long.TryParse(tenantIdClaim, out var tenantId))
-                    {
-                        var tenantContext = context.HttpContext.RequestServices.GetRequiredService<ITenantContext>();
                         tenantContext.TenantId = tenantId;
-                    }
                     return Task.CompletedTask;
                 }
             };

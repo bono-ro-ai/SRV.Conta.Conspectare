@@ -17,13 +17,15 @@ public class FindDocumentsPagedQuery(
 {
     protected override PagedResult<Document> OnExecute()
     {
-        var countQuery = Session.QueryOver<Document>()
-            .Where(d => d.TenantId == tenantId);
+        var countQuery = Session.QueryOver<Document>();
+        if (tenantId > 0)
+            countQuery = countQuery.Where(d => d.TenantId == tenantId);
         ApplyFilters(countQuery);
         var totalCount = countQuery.RowCount();
 
-        var listQuery = Session.QueryOver<Document>()
-            .Where(d => d.TenantId == tenantId);
+        var listQuery = Session.QueryOver<Document>();
+        if (tenantId > 0)
+            listQuery = listQuery.Where(d => d.TenantId == tenantId);
         ApplyFilters(listQuery);
         var items = listQuery
             .OrderBy(d => d.CreatedAt).Desc

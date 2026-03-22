@@ -12,8 +12,10 @@ public class LoadDocumentByIdQuery(long tenantId, long documentId)
         CanonicalOutput canonicalAlias = null;
         ReviewFlag reviewFlagAlias = null;
 
-        var document = Session.QueryOver<Document>()
-            .Where(d => d.TenantId == tenantId)
+        var query = Session.QueryOver<Document>();
+        if (tenantId > 0)
+            query = query.Where(d => d.TenantId == tenantId);
+        var document = query
             .And(d => d.Id == documentId)
             .Left.JoinAlias(d => d.CanonicalOutput, () => canonicalAlias)
             .Left.JoinAlias(d => d.ReviewFlags, () => reviewFlagAlias)
