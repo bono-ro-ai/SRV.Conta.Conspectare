@@ -55,10 +55,7 @@ public class WebhookDispatchService : IWebhookDispatchService
             }
             else if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                ScheduleRetry(delivery, utcNow);
-                _logger.LogWarning(
-                    "Webhook rate-limited for document {DocumentId} (429), will retry (attempt {Attempt}/{Max})",
-                    delivery.DocumentId, delivery.AttemptCount, delivery.MaxAttempts);
+                HandleServerError(delivery, utcNow);
             }
             else if ((int)response.StatusCode >= 500)
             {
