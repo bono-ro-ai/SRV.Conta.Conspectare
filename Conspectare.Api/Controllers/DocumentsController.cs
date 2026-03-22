@@ -148,8 +148,10 @@ public class DocumentsController : ControllerBase
         var document = result.Data;
         var stream = await _storageService.DownloadAsync(document.RawFileS3Key, ct);
 
+        var contentType = document.ContentType ?? "application/octet-stream";
         Response.Headers["X-Content-Type-Options"] = "nosniff";
-        return File(stream, "application/octet-stream", document.FileName);
+        Response.Headers["Content-Disposition"] = $"inline; filename=\"{document.FileName}\"";
+        return File(stream, contentType);
     }
 
     [HttpPost("{id:long}/retry")]
