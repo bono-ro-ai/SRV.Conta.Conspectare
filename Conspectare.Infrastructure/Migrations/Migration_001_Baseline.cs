@@ -171,18 +171,22 @@ public class Migration_001_Baseline : Migration
         Create.Index("idx_flag_doc").OnTable("pipe_review_flags")
             .OnColumn("document_id").Ascending();
 
-        // Seed: dev-test-client
-        Insert.IntoTable("cfg_api_clients").Row(new
+        // Seed: dev-test-client (Development only)
+        var env = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Development";
+        if (env == "Development")
         {
-            name = "dev-test-client",
-            api_key_hash = "d36ba41aff2b6153753a56e88f4c52cc4356ef300372b40b56dd95b0802b606c",
-            api_key_prefix = "dp_dev_te",
-            is_active = true,
-            rate_limit_per_min = 100,
-            max_file_size_mb = 50,
-            created_at = SystemMethods.CurrentUTCDateTime,
-            updated_at = SystemMethods.CurrentUTCDateTime
-        });
+            Insert.IntoTable("cfg_api_clients").Row(new
+            {
+                name = "dev-test-client",
+                api_key_hash = "d36ba41aff2b6153753a56e88f4c52cc4356ef300372b40b56dd95b0802b606c",
+                api_key_prefix = "dp_dev_te",
+                is_active = true,
+                rate_limit_per_min = 100,
+                max_file_size_mb = 50,
+                created_at = SystemMethods.CurrentUTCDateTime,
+                updated_at = SystemMethods.CurrentUTCDateTime
+            });
+        }
     }
 
     public override void Down()

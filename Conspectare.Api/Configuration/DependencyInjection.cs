@@ -23,6 +23,8 @@ internal static class DependencyInjection
 {
     internal static void RegisterAppServices(IConfiguration config, IServiceCollection services)
     {
+        ConfigurationValidator.Validate(config);
+
         var connectionString = config.GetConnectionString("ConspectareDb")!;
 
         var nhSection = config.GetSection("NHibernate");
