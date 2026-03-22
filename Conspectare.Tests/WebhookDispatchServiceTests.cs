@@ -78,17 +78,34 @@ public class WebhookDispatchServiceTests
     }
 
     [Fact]
-    public async Task DispatchAsync_429Response_AlwaysRetries()
+    public async Task DispatchAsync_429Response_SchedulesRetry()
     {
         var handler = new MockHttpMessageHandler(HttpStatusCode.TooManyRequests, "{}");
         var service = CreateService(handler);
-        var delivery = CreateDelivery(maxAttempts: 1);
+        var delivery = CreateDelivery(maxAttempts: 3);
         delivery.AttemptCount = 0;
 
         await service.DispatchAsync(delivery, CancellationToken.None);
 
         Assert.Equal("pending", delivery.Status);
+        Assert.Equal(1, delivery.AttemptCount);
         Assert.NotNull(delivery.NextAttemptAt);
+        Assert.Equal(429, delivery.HttpStatusCode);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_429AfterMaxAttempts_MarksFailedPermanently()
+    {
+        var handler = new MockHttpMessageHandler(HttpStatusCode.TooManyRequests, "{}");
+        var service = CreateService(handler);
+        var delivery = CreateDelivery(maxAttempts: 3);
+        delivery.AttemptCount = 2;
+
+        await service.DispatchAsync(delivery, CancellationToken.None);
+
+        Assert.Equal("failed_permanently", delivery.Status);
+        Assert.Equal(3, delivery.AttemptCount);
+        Assert.Equal(429, delivery.HttpStatusCode);
     }
 
     [Fact]
