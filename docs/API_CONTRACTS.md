@@ -370,7 +370,11 @@ When no webhook secret is configured, the `X-Webhook-Signature` header is omitte
 
 ### GET `/api/v1/admin/usage`
 
-Get daily usage metrics for a tenant. Admin access required.
+Get daily usage metrics for a tenant. Admin access required (requires `[Authorize]`).
+
+**Field semantics**:
+- `storageBytes` — bytes of artifacts created on that day (incremental, not cumulative)
+- `apiCalls` — count of document ingestion API calls (v1 approximation; does not include read-only API calls)
 
 **Query Parameters**:
 

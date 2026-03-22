@@ -52,6 +52,7 @@ public class AggregateUsageForTenantQuery(long tenantId, DateTime dateUtc)
             LlmOutputTokens = tokens.TotalOutputTokens ?? 0,
             LlmRequests = tokens.RequestCount,
             StorageBytes = storageBytes ?? 0,
+            // v1: counts document ingestion calls only; accurate per-request counting requires middleware-level tracking
             ApiCalls = documentsIngested
         };
     }

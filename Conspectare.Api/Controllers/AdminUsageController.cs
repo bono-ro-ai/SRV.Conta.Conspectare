@@ -1,10 +1,12 @@
 using Conspectare.Api.DTOs;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Queries;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Conspectare.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/v1/admin/usage")]
 public class AdminUsageController : ControllerBase

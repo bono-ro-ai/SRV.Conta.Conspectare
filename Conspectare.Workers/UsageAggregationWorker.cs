@@ -25,9 +25,16 @@ public class UsageAggregationWorker : DistributedBackgroundService
         foreach (var tenant in tenants)
         {
             if (ct.IsCancellationRequested) break;
-            var aggregate = new AggregateUsageForTenantQuery(tenant.Id, yesterday).Execute();
-            new UpsertUsageDailyCommand(tenant.Id, yesterday, aggregate).Execute();
-            aggregated++;
+            try
+            {
+                var aggregate = new AggregateUsageForTenantQuery(tenant.Id, yesterday).Execute();
+                new UpsertUsageDailyCommand(tenant.Id, yesterday, aggregate).Execute();
+                aggregated++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "UsageAggregation: failed for tenant {TenantId} on {Date}", tenant.Id, yesterday);
+            }
         }
         logger.LogInformation("UsageAggregation: aggregated {Date} for {Count} tenant(s)", yesterday, aggregated);
         return Task.FromResult(aggregated);
