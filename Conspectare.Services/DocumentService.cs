@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
 using Conspectare.Services.Commands;
@@ -316,6 +317,53 @@ public class DocumentService : IDocumentService
 
         _logger.LogInformation("Resolved document {DocumentId} for tenant {TenantId} with action '{Action}'",
             document.Id, tenantId, action);
+
+        return OperationResult<Document>.Success(document);
+    }
+
+    public async Task<OperationResult<Document>> UpdateCanonicalOutputAsync(long id, string canonicalOutputJson, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(canonicalOutputJson))
+            return OperationResult<Document>.BadRequest("canonicalOutputJson is required.");
+
+        try
+        {
+            using var parsed = JsonDocument.Parse(canonicalOutputJson);
+        }
+        catch (JsonException)
+        {
+            return OperationResult<Document>.BadRequest("canonicalOutputJson must be valid JSON.");
+        }
+
+        var tenantId = _tenantContext.TenantId;
+
+        using var session = _sessionFactory.OpenSession();
+        var document = new LoadDocumentByIdQuery(tenantId, id)
+            .UseExternalSession(session)
+            .Execute();
+
+        if (document == null)
+            return OperationResult<Document>.NotFound($"Document with id {id} not found.");
+
+        if (document.Status != DocumentStatus.ReviewRequired)
+            return OperationResult<Document>.Conflict(
+                $"Cannot edit canonical output for document in status '{document.Status}'. Only documents in 'review_required' status can be edited.");
+
+        if (document.CanonicalOutput == null)
+            return OperationResult<Document>.Conflict("Document has no canonical output to edit.");
+
+        var utcNow = DateTime.UtcNow;
+
+        using var transaction = session.BeginTransaction();
+
+        new UpdateCanonicalOutputCommand(document, canonicalOutputJson, utcNow)
+            .UseExternalSession(session)
+            .Execute();
+
+        await transaction.CommitAsync(ct);
+
+        _logger.LogInformation("Updated canonical output for document {DocumentId} for tenant {TenantId}",
+            document.Id, tenantId);
 
         return OperationResult<Document>.Success(document);
     }

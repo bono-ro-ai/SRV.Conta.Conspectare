@@ -239,6 +239,41 @@ Reject:
 - `404 Not Found` — Document does not exist or belongs to another tenant
 - `409 Conflict` — Document is not in `review_required` status
 
+### PATCH `/api/v1/documents/{id}/canonical-output`
+
+Edit the canonical output of a document in `review_required` status without triggering a status transition.
+
+**Path Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | long | Document ID |
+
+**Request Body** `application/json`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `canonicalOutputJson` | string | Yes | The updated canonical output JSON |
+
+**Request Example**:
+```json
+{
+  "canonicalOutputJson": "{\"invoiceNumber\": \"INV-001\", \"totalAmount\": 100.50}"
+}
+```
+
+**Response** `200 OK`: Returns the updated `DocumentResponse` (same schema as GET `/api/v1/documents/{id}`).
+
+**Behavior**:
+- Updates the canonical output JSON and re-indexes searchable fields (`invoiceNumber`, `issueDate`, `dueDate`, `supplierCui`, `customerCui`, `currency`, `totalAmount`, `vatAmount`)
+- Creates a `canonical_output_edited` audit event
+- Does **not** change document status — remains in `review_required`
+
+**Error Responses**:
+- `400 Bad Request` — Missing or invalid JSON in `canonicalOutputJson`
+- `404 Not Found` — Document does not exist or belongs to another tenant
+- `409 Conflict` — Document is not in `review_required` status, or has no canonical output
+
 ## Authentication
 
 ### POST `/api/v1/auth/validate`

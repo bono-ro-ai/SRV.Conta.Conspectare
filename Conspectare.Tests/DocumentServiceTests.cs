@@ -796,4 +796,159 @@ public class DocumentServiceTests
         Assert.Equal("007", result.Data.FiscalCode);
         _documentRefAllocator.Verify(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), "007"), Times.Once);
     }
+
+    [Fact]
+    public async Task UpdateCanonicalOutputAsync_ReviewRequired_UpdatesOutputAndReturnsSuccess()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var doc = CreateReviewRequiredDocument(setupSession, tenant);
+        var service = CreateService(sharedFactory);
+
+        var newJson = "{\"invoiceNumber\": \"INV-001\", \"totalAmount\": 100.50}";
+        var result = await service.UpdateCanonicalOutputAsync(doc.Id, newJson, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(200, result.StatusCode);
+        Assert.Equal(DocumentStatus.ReviewRequired, result.Data.Status);
+
+        using var verifySession = sharedFactory.OpenSession();
+        var updated = verifySession.Get<CanonicalOutput>(doc.CanonicalOutput.Id);
+        Assert.Equal(newJson, updated.OutputJson);
+    }
+
+    [Fact]
+    public async Task UpdateCanonicalOutputAsync_ReviewRequired_CreatesAuditEvent()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var doc = CreateReviewRequiredDocument(setupSession, tenant);
+        var service = CreateService(sharedFactory);
+
+        var newJson = "{\"invoiceNumber\": \"INV-002\"}";
+        var result = await service.UpdateCanonicalOutputAsync(doc.Id, newJson, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        using var verifySession = sharedFactory.OpenSession();
+        var events = verifySession.QueryOver<DocumentEvent>()
+            .Where(e => e.DocumentId == doc.Id)
+            .And(e => e.EventType == "canonical_output_edited")
+            .List();
+        Assert.Single(events);
+        Assert.Equal(DocumentStatus.ReviewRequired, events[0].FromStatus);
+        Assert.Equal(DocumentStatus.ReviewRequired, events[0].ToStatus);
+    }
+
+    [Fact]
+    public async Task UpdateCanonicalOutputAsync_CompletedDocument_ReturnsConflict()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var utcNow = DateTime.UtcNow;
+        var doc = new Document
+        {
+            TenantId = tenant.Id,
+            Tenant = tenant,
+            FileName = "completed.xml",
+            ContentType = "text/xml",
+            FileSizeBytes = 100,
+            InputFormat = InputFormat.XmlEfactura,
+            Status = DocumentStatus.Completed,
+            RetryCount = 0,
+            MaxRetries = 3,
+            RawFileS3Key = "test/raw/completed.xml",
+            CreatedAt = utcNow,
+            UpdatedAt = utcNow,
+            CompletedAt = utcNow
+        };
+
+        using (var tx = setupSession.BeginTransaction())
+        {
+            setupSession.Save(doc);
+            tx.Commit();
+        }
+
+        var service = CreateService(sharedFactory);
+
+        var result = await service.UpdateCanonicalOutputAsync(doc.Id, "{\"test\": true}", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(409, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCanonicalOutputAsync_NonExistentDocument_ReturnsNotFound()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var service = CreateService(sharedFactory);
+
+        var result = await service.UpdateCanonicalOutputAsync(999999, "{\"test\": true}", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(404, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCanonicalOutputAsync_EmptyJson_ReturnsBadRequest()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        var service = CreateService(sharedFactory);
+
+        var result = await service.UpdateCanonicalOutputAsync(1, "", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCanonicalOutputAsync_InvalidJson_ReturnsBadRequest()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        var service = CreateService(sharedFactory);
+
+        var result = await service.UpdateCanonicalOutputAsync(1, "not valid json {{{", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateCanonicalOutputAsync_UpdatesIndexedFields()
+    {
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var doc = CreateReviewRequiredDocument(setupSession, tenant);
+        var service = CreateService(sharedFactory);
+
+        var newJson = "{\"invoiceNumber\": \"INV-999\", \"totalAmount\": 250.75, \"vatAmount\": 47.64, \"currency\": \"EUR\", \"supplierCui\": \"RO123\", \"customerCui\": \"RO456\"}";
+        var result = await service.UpdateCanonicalOutputAsync(doc.Id, newJson, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        using var verifySession = sharedFactory.OpenSession();
+        var updated = verifySession.Get<CanonicalOutput>(doc.CanonicalOutput.Id);
+        Assert.Equal("INV-999", updated.InvoiceNumber);
+        Assert.Equal(250.75m, updated.TotalAmount);
+        Assert.Equal(47.64m, updated.VatAmount);
+        Assert.Equal("EUR", updated.Currency);
+        Assert.Equal("RO123", updated.SupplierCui);
+        Assert.Equal("RO456", updated.CustomerCui);
+    }
 }
