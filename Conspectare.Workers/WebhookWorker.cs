@@ -26,6 +26,7 @@ public class WebhookWorker : DistributedBackgroundService
         var processedCount = 0;
         foreach (var delivery in pendingDeliveries)
         {
+            ct.ThrowIfCancellationRequested();
             try
             {
                 var client = new LoadApiClientByIdQuery(delivery.TenantId).Execute();
@@ -41,6 +42,10 @@ public class WebhookWorker : DistributedBackgroundService
                 await dispatchService.DispatchAsync(delivery, client.WebhookSecret, ct);
                 new UpdateWebhookDeliveryCommand(delivery).Execute();
                 processedCount++;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
