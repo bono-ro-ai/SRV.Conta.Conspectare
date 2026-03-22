@@ -32,6 +32,15 @@ public class ReviewQueueController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
+        if (!_tenantContext.IsAdmin)
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/403",
+                Title = "Forbidden",
+                Status = StatusCodes.Status403Forbidden,
+                Detail = "Admin access required."
+            });
+
         if (page < 1)
             return BadRequest(new ProblemDetails
             {
@@ -71,6 +80,15 @@ public class ReviewQueueController : ControllerBase
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(long id, CancellationToken ct)
     {
+        if (!_tenantContext.IsAdmin)
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/403",
+                Title = "Forbidden",
+                Status = StatusCodes.Status403Forbidden,
+                Detail = "Admin access required."
+            });
+
         var tenantId = _tenantContext.TenantId;
         var document = new LoadDocumentByIdQuery(tenantId, id).Execute();
 
@@ -95,6 +113,15 @@ public class ReviewQueueController : ControllerBase
         [FromBody] ApproveDocumentRequest request,
         CancellationToken ct)
     {
+        if (!_tenantContext.IsAdmin)
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/403",
+                Title = "Forbidden",
+                Status = StatusCodes.Status403Forbidden,
+                Detail = "Admin access required."
+            });
+
         var tenantId = _tenantContext.TenantId;
         var result = await _reviewService.ApproveAsync(tenantId, id, request?.Notes, ct);
 
@@ -110,6 +137,15 @@ public class ReviewQueueController : ControllerBase
         [FromBody] RejectDocumentRequest request,
         CancellationToken ct)
     {
+        if (!_tenantContext.IsAdmin)
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/403",
+                Title = "Forbidden",
+                Status = StatusCodes.Status403Forbidden,
+                Detail = "Admin access required."
+            });
+
         if (request == null || string.IsNullOrWhiteSpace(request.Reason))
             return BadRequest(new ProblemDetails
             {

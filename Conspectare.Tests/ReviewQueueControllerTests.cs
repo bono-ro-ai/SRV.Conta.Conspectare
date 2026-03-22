@@ -16,7 +16,7 @@ public class ReviewQueueControllerTests
 {
     private readonly Mock<IReviewService> _reviewServiceMock = new();
     private readonly Mock<IStorageService> _storageServiceMock = new();
-    private readonly MockTenantContext _tenantContext = new() { TenantId = 1 };
+    private readonly MockTenantContext _tenantContext = new() { TenantId = 1, IsAdmin = true };
     private readonly ReviewQueueController _controller;
 
     public ReviewQueueControllerTests()
@@ -26,6 +26,60 @@ public class ReviewQueueControllerTests
             _storageServiceMock.Object,
             _tenantContext,
             NullLogger<ReviewQueueController>.Instance);
+    }
+
+    private ReviewQueueController CreateController(bool isAdmin)
+    {
+        var tenant = new MockTenantContext { TenantId = 1, IsAdmin = isAdmin };
+        return new ReviewQueueController(
+            _reviewServiceMock.Object,
+            _storageServiceMock.Object,
+            tenant,
+            NullLogger<ReviewQueueController>.Instance);
+    }
+
+    [Fact]
+    public void List_NotAdmin_Returns403()
+    {
+        var controller = CreateController(isAdmin: false);
+        var result = controller.List();
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        Assert.Equal("Admin access required.", problem.Detail);
+    }
+
+    [Fact]
+    public async Task GetById_NotAdmin_Returns403()
+    {
+        var controller = CreateController(isAdmin: false);
+        var result = await controller.GetById(1, CancellationToken.None);
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        Assert.Equal("Admin access required.", problem.Detail);
+    }
+
+    [Fact]
+    public async Task Approve_NotAdmin_Returns403()
+    {
+        var controller = CreateController(isAdmin: false);
+        var result = await controller.Approve(1, new ApproveDocumentRequest(), CancellationToken.None);
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        Assert.Equal("Admin access required.", problem.Detail);
+    }
+
+    [Fact]
+    public async Task Reject_NotAdmin_Returns403()
+    {
+        var controller = CreateController(isAdmin: false);
+        var result = await controller.Reject(1, new RejectDocumentRequest { Reason = "bad" }, CancellationToken.None);
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(objectResult.Value);
+        Assert.Equal("Admin access required.", problem.Detail);
     }
 
     [Fact]
