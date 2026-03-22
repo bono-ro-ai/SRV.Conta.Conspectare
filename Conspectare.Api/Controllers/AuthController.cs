@@ -213,6 +213,10 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _magicLinkRateLimit = new();
+    private const int MagicLinkMaxPerWindow = 5;
+    private static readonly TimeSpan MagicLinkWindow = TimeSpan.FromMinutes(15);
+
     [HttpPost("magic-link/send")]
     [AllowAnonymous]
     public async Task<IActionResult> SendMagicLink([FromBody] MagicLinkSendRequest request)
@@ -228,7 +232,24 @@ public class AuthController : ControllerBase
             });
         }
 
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var now = DateTime.UtcNow;
+        var entry = _magicLinkRateLimit.AddOrUpdate(ipAddress,
+            _ => (1, now),
+            (_, existing) => existing.WindowStart.Add(MagicLinkWindow) < now
+                ? (1, now)
+                : (existing.Count + 1, existing.WindowStart));
+        if (entry.Count > MagicLinkMaxPerWindow)
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/429",
+                Title = "Too Many Requests",
+                Status = StatusCodes.Status429TooManyRequests,
+                Detail = "Prea multe cereri. Încercați din nou mai târziu."
+            });
+        }
+
         var result = await _authService.SendMagicLinkAsync(request.Email.Trim(), ipAddress);
 
         if (!result.IsSuccess)

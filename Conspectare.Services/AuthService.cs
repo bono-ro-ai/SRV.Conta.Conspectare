@@ -254,27 +254,31 @@ public class AuthService : IAuthService
     public async Task<OperationResult<string>> SendMagicLinkAsync(string email, string ipAddress)
     {
         var emailLower = email.ToLowerInvariant().Trim();
-        var user = new LoadUserByEmailQuery(emailLower).Execute();
+
+        using var session = Core.Database.NHibernateConspectare.OpenSession();
+        using var transaction = session.BeginTransaction();
+
+        var user = session.QueryOver<User>()
+            .Where(u => u.Email == emailLower)
+            .SingleOrDefault();
 
         if (user == null)
         {
-            var hasAnyUsers = new FindAnyUserExistsQuery().Execute();
-            var role = hasAnyUsers ? "user" : "admin";
             var now = DateTime.UtcNow;
             user = new User
             {
                 Email = emailLower,
                 Name = emailLower.Split('@')[0],
                 PasswordHash = null,
-                Role = role,
+                Role = "user",
                 IsActive = true,
                 FailedLoginAttempts = 0,
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            new SaveUserCommand(user).Execute();
-            _logger.LogInformation("Auto-created user via magic link for {MaskedEmail} (role: {Role}, id: {UserId})",
-                AuthTokenHelper.MaskEmail(emailLower), role, user.Id);
+            session.Save(user);
+            _logger.LogInformation("Auto-created user via magic link for {MaskedEmail} (role: user, id: {UserId})",
+                AuthTokenHelper.MaskEmail(emailLower), user.Id);
         }
 
         var rawToken = AuthTokenHelper.GenerateRawToken();
@@ -289,7 +293,9 @@ public class AuthService : IAuthService
             CreatedAt = DateTime.UtcNow,
             IpAddress = ipAddress
         };
-        Core.Database.SaveOrUpdateCommand.For(magicLinkToken).Execute();
+        session.Save(magicLinkToken);
+        session.Flush();
+        transaction.Commit();
 
         var frontendUrl = _appSettings.FrontendUrl.TrimEnd('/');
         var magicLinkUrl = $"{frontendUrl}/auth/magic-link?token={Uri.EscapeDataString(rawToken)}";

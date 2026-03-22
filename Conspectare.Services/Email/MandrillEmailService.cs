@@ -52,7 +52,7 @@ public class MandrillEmailService : IEmailService
             throw new InvalidOperationException($"Failed to send magic link email via Mandrill: {response.StatusCode}");
         }
 
-        _logger.LogInformation("Magic link email sent to {Email} via Mandrill", email);
+        _logger.LogInformation("Magic link email sent to {MaskedEmail} via Mandrill", Auth.AuthTokenHelper.MaskEmail(email));
     }
 
     private static string BuildMagicLinkHtml(string url)

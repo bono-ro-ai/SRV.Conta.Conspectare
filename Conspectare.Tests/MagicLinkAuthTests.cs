@@ -70,7 +70,7 @@ public class MagicLinkAuthTests : IDisposable
         var user = new Services.Queries.LoadUserByEmailQuery("newuser@test.com").Execute();
         Assert.NotNull(user);
         Assert.Null(user.PasswordHash);
-        Assert.Equal("admin", user.Role);
+        Assert.Equal("user", user.Role);
     }
 
     [Fact]
