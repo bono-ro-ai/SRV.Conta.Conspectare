@@ -10,7 +10,7 @@ public class DocumentStatusWorkflow
         [DocumentStatus.PendingTriage] = new() { DocumentStatus.Triaging },
         [DocumentStatus.Triaging] = new() { DocumentStatus.PendingExtraction, DocumentStatus.ReviewRequired, DocumentStatus.Rejected },
         [DocumentStatus.PendingExtraction] = new() { DocumentStatus.Extracting },
-        [DocumentStatus.Extracting] = new() { DocumentStatus.Completed, DocumentStatus.ExtractionFailed, DocumentStatus.ReviewRequired },
+        [DocumentStatus.Extracting] = new() { DocumentStatus.Completed, DocumentStatus.ExtractionFailed, DocumentStatus.ReviewRequired, DocumentStatus.Failed },
         [DocumentStatus.ExtractionFailed] = new() { DocumentStatus.PendingTriage, DocumentStatus.Failed },
         [DocumentStatus.ReviewRequired] = new() { DocumentStatus.PendingTriage, DocumentStatus.Rejected, DocumentStatus.Completed },
     };
