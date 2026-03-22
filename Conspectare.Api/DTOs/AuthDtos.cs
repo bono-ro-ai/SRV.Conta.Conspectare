@@ -21,3 +21,7 @@ public record SignupResponse(
     string ApiKeyPrefix,
     DateTime TrialExpiresAt,
     string Token);
+
+public record MagicLinkSendRequest(string Email);
+
+public record MagicLinkVerifyRequest(string Token);

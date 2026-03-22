@@ -213,6 +213,60 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("magic-link/send")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SendMagicLink([FromBody] MagicLinkSendRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Email is required."
+            });
+        }
+
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var result = await _authService.SendMagicLinkAsync(request.Email.Trim(), ipAddress);
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        return Ok(new MessageResponse(result.Data));
+    }
+
+    [HttpPost("magic-link/verify")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyMagicLink([FromBody] MagicLinkVerifyRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Token))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Token is required."
+            });
+        }
+
+        var result = await _authService.VerifyMagicLinkAsync(request.Token.Trim());
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken, _jwtSettings.RefreshTokenExpirationDays);
+
+        var response = new AuthResponse(
+            result.Data.Token,
+            result.Data.ExpiresAt,
+            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role));
+
+        return Ok(response);
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me()
