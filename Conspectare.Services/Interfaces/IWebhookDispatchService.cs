@@ -4,5 +4,5 @@ namespace Conspectare.Services.Interfaces;
 
 public interface IWebhookDispatchService
 {
-    Task DispatchAsync(WebhookDelivery delivery, CancellationToken ct);
+    Task DispatchAsync(WebhookDelivery delivery, string webhookSecret, CancellationToken ct);
 }

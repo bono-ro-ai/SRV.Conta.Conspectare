@@ -28,7 +28,17 @@ public class WebhookWorker : DistributedBackgroundService
         {
             try
             {
-                await dispatchService.DispatchAsync(delivery, ct);
+                var client = new LoadApiClientByIdQuery(delivery.TenantId).Execute();
+                if (client == null)
+                {
+                    delivery.Status = "failed_permanently";
+                    delivery.ErrorMessage = "ApiClient not found";
+                    delivery.UpdatedAt = DateTime.UtcNow;
+                    new UpdateWebhookDeliveryCommand(delivery).Execute();
+                    processedCount++;
+                    continue;
+                }
+                await dispatchService.DispatchAsync(delivery, client.WebhookSecret, ct);
                 new UpdateWebhookDeliveryCommand(delivery).Execute();
                 processedCount++;
             }

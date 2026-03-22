@@ -16,7 +16,6 @@ public class WebhookDeliveryMap : ClassMap<WebhookDelivery>
         Map(x => x.TenantId).Column("tenant_id").Not.Nullable();
         Map(x => x.WebhookUrl).Column("webhook_url").Not.Nullable().Length(500);
         Map(x => x.PayloadJson).Column("payload_json").CustomSqlType("LONGTEXT").Not.Nullable();
-        Map(x => x.WebhookSecret).Column("webhook_secret").Length(128);
         Map(x => x.Status).Column("status").Not.Nullable().Length(30);
         Map(x => x.HttpStatusCode).Column("http_status_code");
         Map(x => x.ErrorMessage).Column("error_message").Length(2000);

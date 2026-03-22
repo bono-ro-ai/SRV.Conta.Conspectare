@@ -40,7 +40,7 @@ public class WebhookDispatchServiceTests
         var service = CreateService(handler);
         var delivery = CreateDelivery();
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Equal("delivered", delivery.Status);
         Assert.NotNull(delivery.DeliveredAt);
@@ -55,7 +55,7 @@ public class WebhookDispatchServiceTests
         var service = CreateService(handler);
         var delivery = CreateDelivery();
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Equal("pending", delivery.Status);
         Assert.Equal(1, delivery.AttemptCount);
@@ -70,7 +70,7 @@ public class WebhookDispatchServiceTests
         var service = CreateService(handler);
         var delivery = CreateDelivery();
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Equal("failed_permanently", delivery.Status);
         Assert.Equal(400, delivery.HttpStatusCode);
@@ -85,7 +85,7 @@ public class WebhookDispatchServiceTests
         var delivery = CreateDelivery(maxAttempts: 3);
         delivery.AttemptCount = 0;
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Equal("pending", delivery.Status);
         Assert.Equal(1, delivery.AttemptCount);
@@ -101,7 +101,7 @@ public class WebhookDispatchServiceTests
         var delivery = CreateDelivery(maxAttempts: 3);
         delivery.AttemptCount = 2;
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Equal("failed_permanently", delivery.Status);
         Assert.Equal(3, delivery.AttemptCount);
@@ -116,7 +116,7 @@ public class WebhookDispatchServiceTests
         var delivery = CreateDelivery(maxAttempts: 3);
         delivery.AttemptCount = 2;
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Equal("failed_permanently", delivery.Status);
         Assert.Equal(3, delivery.AttemptCount);
@@ -129,7 +129,7 @@ public class WebhookDispatchServiceTests
         var service = CreateService(handler);
         var delivery = CreateDelivery();
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Equal("pending", delivery.Status);
         Assert.Equal(1, delivery.AttemptCount);
@@ -145,12 +145,12 @@ public class WebhookDispatchServiceTests
 
         var delivery1 = CreateDelivery();
         delivery1.AttemptCount = 0;
-        await service.DispatchAsync(delivery1, CancellationToken.None);
+        await service.DispatchAsync(delivery1, null, CancellationToken.None);
         var firstRetryAt = delivery1.NextAttemptAt;
 
         var delivery2 = CreateDelivery();
         delivery2.AttemptCount = 1;
-        await service.DispatchAsync(delivery2, CancellationToken.None);
+        await service.DispatchAsync(delivery2, null, CancellationToken.None);
         var secondRetryAt = delivery2.NextAttemptAt;
 
         Assert.NotNull(firstRetryAt);
@@ -165,7 +165,7 @@ public class WebhookDispatchServiceTests
         var service = CreateService(handler);
         var delivery = CreateDelivery("https://myapp.com/hooks/documents");
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Single(handler.RequestUrls);
         Assert.Equal("https://myapp.com/hooks/documents", handler.RequestUrls[0]);
@@ -178,7 +178,7 @@ public class WebhookDispatchServiceTests
         var service = CreateService(handler);
         var delivery = CreateDelivery();
 
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
 
         Assert.Single(handler.Requests);
         Assert.Contains("document.status_changed", handler.Requests[0]);
@@ -190,8 +190,7 @@ public class WebhookDispatchServiceTests
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, "{}");
         var service = CreateService(handler);
         var delivery = CreateDelivery();
-        delivery.WebhookSecret = "test-secret-key";
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, "test-secret-key", CancellationToken.None);
         Assert.True(handler.RequestHeaders.ContainsKey("X-Webhook-Signature"));
         var signature = handler.RequestHeaders["X-Webhook-Signature"];
         Assert.StartsWith("sha256=", signature);
@@ -207,8 +206,7 @@ public class WebhookDispatchServiceTests
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, "{}");
         var service = CreateService(handler);
         var delivery = CreateDelivery();
-        delivery.WebhookSecret = null;
-        await service.DispatchAsync(delivery, CancellationToken.None);
+        await service.DispatchAsync(delivery, null, CancellationToken.None);
         Assert.False(handler.RequestHeaders.ContainsKey("X-Webhook-Signature"));
     }
 }

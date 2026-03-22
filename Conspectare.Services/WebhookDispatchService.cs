@@ -24,7 +24,7 @@ public class WebhookDispatchService : IWebhookDispatchService
         _logger = logger;
     }
 
-    public async Task DispatchAsync(WebhookDelivery delivery, CancellationToken ct)
+    public async Task DispatchAsync(WebhookDelivery delivery, string webhookSecret, CancellationToken ct)
     {
         var utcNow = DateTime.UtcNow;
         delivery.AttemptCount++;
@@ -35,9 +35,9 @@ public class WebhookDispatchService : IWebhookDispatchService
         {
             using var content = new StringContent(delivery.PayloadJson, Encoding.UTF8, "application/json");
             using var request = new HttpRequestMessage(HttpMethod.Post, delivery.WebhookUrl) { Content = content };
-            if (!string.IsNullOrEmpty(delivery.WebhookSecret))
+            if (!string.IsNullOrEmpty(webhookSecret))
             {
-                using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(delivery.WebhookSecret));
+                using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(webhookSecret));
                 var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(delivery.PayloadJson));
                 var signature = "sha256=" + Convert.ToHexString(hash).ToLowerInvariant();
                 request.Headers.Add("X-Webhook-Signature", signature);

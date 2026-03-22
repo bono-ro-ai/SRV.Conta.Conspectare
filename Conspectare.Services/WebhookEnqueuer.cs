@@ -28,7 +28,6 @@ public static class WebhookEnqueuer
             TenantId = doc.TenantId,
             WebhookUrl = client.WebhookUrl,
             PayloadJson = payloadJson,
-            WebhookSecret = client.WebhookSecret,
             Status = "pending",
             AttemptCount = 0,
             MaxAttempts = 3,
