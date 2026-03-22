@@ -45,6 +45,7 @@ public class DocumentsController : ControllerBase
         [FromHeader(Name = "X-Request-Id")] string externalRef,
         [FromForm] string clientReference,
         [FromForm] string metadata,
+        [FromForm] string fiscalCode,
         CancellationToken ct)
     {
         if (file == null || file.Length == 0)
@@ -73,6 +74,7 @@ public class DocumentsController : ControllerBase
             externalRef,
             clientReference,
             metadata,
+            fiscalCode,
             ct);
 
         if (!result.IsSuccess)
@@ -80,6 +82,7 @@ public class DocumentsController : ControllerBase
 
         var response = new UploadAcceptedResponse(
             result.Data.Id,
+            result.Data.DocumentRef,
             _workflow.GetExternalStatus(result.Data.Status),
             result.Data.CreatedAt);
 

@@ -17,6 +17,7 @@ Upload a document for processing.
 | `file` | File | Yes | The document file |
 | `clientReference` | string | No | Client-provided reference |
 | `metadata` | string | No | JSON metadata |
+| `fiscalCode` | string | No | Fiscal code (CUI) of the issuer. Used to generate `documentRef` in format `{CUI}-{YY}-{N}`. "RO" prefix is stripped automatically. Defaults to "007" if empty. |
 
 **Headers**:
 - `X-Request-Id` (optional) — Idempotency key / external reference
@@ -25,7 +26,7 @@ Upload a document for processing.
 ```json
 {
   "id": 1,
-  "externalRef": "uuid",
+  "documentRef": "12345678-26-1",
   "status": "processing",
   "createdAt": "2026-03-20T10:00:00Z"
 }
@@ -52,6 +53,8 @@ List documents with optional filters. Returns paginated results.
   "items": [
     {
       "id": 1,
+      "documentRef": "12345678-26-1",
+      "fiscalCode": "12345678",
       "externalRef": "uuid",
       "fileName": "invoice.xml",
       "contentType": "text/xml",
@@ -84,6 +87,8 @@ Retrieve a single document with full details including events, extraction attemp
 ```json
 {
   "id": 1,
+  "documentRef": "12345678-26-1",
+  "fiscalCode": "12345678",
   "externalRef": "uuid",
   "fileName": "invoice.xml",
   "contentType": "text/xml",
@@ -268,6 +273,8 @@ When a document reaches a terminal or review-required status, a webhook is dispa
 {
   "event": "document.status_changed",
   "document_id": 42,
+  "document_ref": "12345678-26-1",
+  "fiscal_code": "12345678",
   "external_ref": "uuid-or-null",
   "status": "completed",
   "timestamp": "2026-03-20T12:00:00.0000000Z",
@@ -293,6 +300,8 @@ When a document reaches a terminal or review-required status, a webhook is dispa
 |-------|------|-------------|
 | `event` | string | Always `document.status_changed` |
 | `document_id` | long | Document ID |
+| `document_ref` | string? | Auto-generated document reference in `{CUI}-{YY}-{N}` format |
+| `fiscal_code` | string? | Normalized fiscal code (CUI without RO prefix) |
 | `external_ref` | string? | External reference (from upload or X-Request-Id) |
 | `status` | string | Document status: `completed`, `failed`, `rejected`, `review_required` |
 | `timestamp` | string | ISO 8601 UTC timestamp of the event |

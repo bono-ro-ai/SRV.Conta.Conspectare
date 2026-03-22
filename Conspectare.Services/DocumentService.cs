@@ -18,6 +18,7 @@ public class DocumentService : IDocumentService
     private readonly ITenantContext _tenantContext;
     private readonly DocumentStatusWorkflow _workflow;
     private readonly IPipelineSignal _pipelineSignal;
+    private readonly IDocumentRefAllocator _documentRefAllocator;
     private readonly ILogger<DocumentService> _logger;
 
     public DocumentService(
@@ -26,6 +27,7 @@ public class DocumentService : IDocumentService
         ITenantContext tenantContext,
         DocumentStatusWorkflow workflow,
         IPipelineSignal pipelineSignal,
+        IDocumentRefAllocator documentRefAllocator,
         ILogger<DocumentService> logger)
     {
         _sessionFactory = sessionFactory;
@@ -33,6 +35,7 @@ public class DocumentService : IDocumentService
         _tenantContext = tenantContext;
         _workflow = workflow;
         _pipelineSignal = pipelineSignal;
+        _documentRefAllocator = documentRefAllocator;
         _logger = logger;
     }
 
@@ -43,6 +46,7 @@ public class DocumentService : IDocumentService
         string externalRef,
         string clientReference,
         string metadata,
+        string fiscalCode = null,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(fileName))
@@ -150,6 +154,11 @@ public class DocumentService : IDocumentService
 
         using var session = _sessionFactory.OpenSession();
         using var transaction = session.BeginTransaction();
+
+        var normalizedFiscalCode = DocumentRefAllocator.NormalizeFiscalCode(fiscalCode);
+        var documentRef = _documentRefAllocator.AllocateRef(session, fiscalCode);
+        document.DocumentRef = documentRef;
+        document.FiscalCode = normalizedFiscalCode;
 
         new SaveIngestedDocumentCommand(document, artifact, ingestedEvent, triageEvent)
             .UseExternalSession(session)

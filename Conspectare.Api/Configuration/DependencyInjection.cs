@@ -98,6 +98,7 @@ internal static class DependencyInjection
         services.AddScoped<IDocumentProcessor, ImageDocumentProcessor>();
         services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
         services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
+        services.AddSingleton<IDocumentRefAllocator, DocumentRefAllocator>();
         services.AddScoped<IDocumentService, DocumentService>();
         services.AddScoped<IReviewService, ReviewService>();
 

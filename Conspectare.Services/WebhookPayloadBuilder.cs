@@ -13,6 +13,8 @@ public static class WebhookPayloadBuilder
         {
             ["event"] = "document.status_changed",
             ["document_id"] = doc.Id,
+            ["document_ref"] = doc.DocumentRef,
+            ["fiscal_code"] = doc.FiscalCode,
             ["external_ref"] = doc.ExternalRef,
             ["status"] = doc.Status,
             ["timestamp"] = utcNow.ToString("O"),
