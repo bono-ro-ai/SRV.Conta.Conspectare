@@ -9,27 +9,23 @@ public class AuditCleanupWorker : DistributedBackgroundService
 {
     protected override string JobName => "audit_cleanup_worker";
     protected override TimeSpan Interval => TimeSpan.FromHours(6);
-    protected override string SignalStage => "";
-    private const int RetentionDays = 30;
 
     public AuditCleanupWorker(
         IDistributedLock distributedLock,
         IServiceScopeFactory scopeFactory,
-        ILogger<AuditCleanupWorker> logger,
-        IPipelineSignal signal)
-        : base(distributedLock, scopeFactory, logger, signal) { }
+        ILogger<AuditCleanupWorker> logger)
+        : base(distributedLock, scopeFactory, logger) { }
 
-    protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
+    protected override Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
     {
-        ct.ThrowIfCancellationRequested();
         using var session = NHibernateConspectare.OpenSession();
         using var tx = session.BeginTransaction();
-        var cutoff = DateTime.UtcNow.AddDays(-RetentionDays);
+        var cutoff = DateTime.UtcNow.AddDays(-30);
         var deleted = session.CreateSQLQuery(
-                "DELETE FROM audit_job_executions WHERE started_at < :cutoff")
+                "DELETE FROM audit_job_executions WHERE started_at < :cutoff LIMIT 10000")
             .SetParameter("cutoff", cutoff)
             .ExecuteUpdate();
         tx.Commit();
-        return deleted;
+        return Task.FromResult(deleted);
     }
 }
