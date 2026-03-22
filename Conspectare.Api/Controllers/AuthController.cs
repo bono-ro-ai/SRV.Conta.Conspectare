@@ -105,8 +105,7 @@ public class AuthController : ControllerBase
             data.PlainApiKey,
             data.ApiKeyPrefix,
             data.TrialExpiresAt,
-            data.Token,
-            data.RawRefreshToken);
+            data.Token);
 
         return new ObjectResult(response) { StatusCode = StatusCodes.Status201Created };
     }

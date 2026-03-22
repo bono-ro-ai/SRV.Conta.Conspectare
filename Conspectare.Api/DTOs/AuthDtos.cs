@@ -20,5 +20,4 @@ public record SignupResponse(
     string ApiKey,
     string ApiKeyPrefix,
     DateTime TrialExpiresAt,
-    string Token,
-    string RefreshToken);
+    string Token);

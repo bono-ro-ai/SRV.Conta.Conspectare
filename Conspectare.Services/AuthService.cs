@@ -156,10 +156,10 @@ public class AuthService : IAuthService
         session.Save(apiClient);
         user.TenantId = apiClient.Id;
         session.Save(user);
-        tran.Commit();
-
         var (refreshEntity, rawRefreshToken) = CreateRefreshToken(user.Id);
-        new SaveRefreshTokenCommand(refreshEntity).Execute();
+        session.Save(refreshEntity);
+        session.Flush();
+        tran.Commit();
 
         var jwtToken = GenerateJwtToken(user);
 
