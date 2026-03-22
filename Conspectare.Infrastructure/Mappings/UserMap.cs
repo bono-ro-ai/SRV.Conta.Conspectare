@@ -17,6 +17,7 @@ public class UserMap : ClassMap<User>
         Map(x => x.Role).Column("role").Not.Nullable().Length(50);
         Map(x => x.IsActive).Column("is_active").Not.Nullable();
         Map(x => x.FailedLoginAttempts).Column("failed_login_attempts").Not.Nullable();
+        Map(x => x.TenantId).Column("tenant_id");
         Map(x => x.LockedUntil).Column("locked_until");
         Map(x => x.LastLoginAt).Column("last_login_at");
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();

@@ -55,6 +55,62 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    [HttpPost("signup")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Signup([FromBody] SignupRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.CompanyName) ||
+            string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Company name, email, and password are required."
+            });
+        }
+
+        if (request.Password.Length < 10 ||
+            !request.Password.Any(char.IsUpper) ||
+            !request.Password.Any(char.IsLower) ||
+            !request.Password.Any(char.IsDigit))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Password must be at least 10 characters and contain at least one uppercase letter, one lowercase letter, and one digit."
+            });
+        }
+
+        var result = await _authService.SignupAsync(
+            request.CompanyName.Trim(),
+            request.Cui?.Trim() ?? "",
+            request.Email.Trim(),
+            request.Password);
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        var data = result.Data;
+        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, data.RawRefreshToken, _jwtSettings.RefreshTokenExpirationDays);
+
+        var response = new SignupResponse(
+            data.TenantId,
+            data.UserId,
+            data.Email,
+            data.Role,
+            data.PlainApiKey,
+            data.ApiKeyPrefix,
+            data.TrialExpiresAt,
+            data.Token,
+            data.RawRefreshToken);
+
+        return new ObjectResult(response) { StatusCode = StatusCodes.Status201Created };
+    }
+
     [HttpPost("register")]
     [Authorize]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)

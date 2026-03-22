@@ -56,6 +56,7 @@ internal static class DependencyInjection
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<ITenantSettingsService, TenantSettingsService>();
 
         ConfigureAuthentication(config, services);
 
@@ -168,6 +169,19 @@ internal static class DependencyInjection
                 ValidAudience = audience,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
                 ClockSkew = TimeSpan.FromSeconds(30)
+            };
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = context =>
+                {
+                    var tenantIdClaim = context.Principal?.FindFirst("tenantId")?.Value;
+                    if (tenantIdClaim != null && long.TryParse(tenantIdClaim, out var tenantId))
+                    {
+                        var tenantContext = context.HttpContext.RequestServices.GetRequiredService<ITenantContext>();
+                        tenantContext.TenantId = tenantId;
+                    }
+                    return Task.CompletedTask;
+                }
             };
         })
         .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(AuthSchemeConstants.ApiKey, null);

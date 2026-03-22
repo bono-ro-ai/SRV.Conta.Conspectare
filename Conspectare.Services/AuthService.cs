@@ -100,6 +100,82 @@ public class AuthService : IAuthService
         return Task.FromResult(OperationResult<User>.Created(user));
     }
 
+    public Task<OperationResult<SignupResult>> SignupAsync(string companyName, string cui, string email, string password)
+    {
+        var existing = new LoadUserByEmailQuery(email).Execute();
+        if (existing != null)
+        {
+            return Task.FromResult(OperationResult<SignupResult>.Conflict("A user with this email already exists."));
+        }
+
+        var normalizedCui = cui?.Trim() ?? "";
+        if (normalizedCui.StartsWith("RO", StringComparison.OrdinalIgnoreCase))
+            normalizedCui = normalizedCui[2..];
+
+        var now = DateTime.UtcNow;
+        var trialExpiresAt = now.AddDays(30);
+
+        var randomBytes = RandomNumberGenerator.GetBytes(32);
+        var hexChars = Convert.ToHexStringLower(randomBytes);
+        var plainKey = $"csp_{hexChars}";
+        var prefix = plainKey[..8];
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(plainKey));
+        var hashHex = Convert.ToHexStringLower(hash);
+
+        var apiClient = new ApiClient
+        {
+            Name = companyName,
+            CompanyName = companyName,
+            Cui = normalizedCui,
+            ContactEmail = email,
+            ApiKeyHash = hashHex,
+            ApiKeyPrefix = prefix,
+            IsActive = true,
+            IsAdmin = false,
+            RateLimitPerMin = 60,
+            MaxFileSizeMb = 10,
+            TrialExpiresAt = trialExpiresAt,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        var user = new User
+        {
+            Email = email,
+            Name = companyName,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12),
+            Role = "user",
+            IsActive = true,
+            FailedLoginAttempts = 0,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        using var session = Core.Database.NHibernateConspectare.OpenSession();
+        using var tran = session.BeginTransaction();
+        session.Save(apiClient);
+        user.TenantId = apiClient.Id;
+        session.Save(user);
+        tran.Commit();
+
+        var (refreshEntity, rawRefreshToken) = CreateRefreshToken(user.Id);
+        new SaveRefreshTokenCommand(refreshEntity).Execute();
+
+        var jwtToken = GenerateJwtToken(user);
+
+        return Task.FromResult(OperationResult<SignupResult>.Created(
+            new SignupResult(
+                apiClient.Id,
+                user.Id,
+                user.Email,
+                user.Role,
+                plainKey,
+                prefix,
+                trialExpiresAt,
+                jwtToken,
+                rawRefreshToken)));
+    }
+
     public Task<OperationResult<AuthResult>> RefreshTokenAsync(string rawRefreshToken)
     {
         var tokenHash = ComputeTokenHash(rawRefreshToken);
@@ -166,15 +242,20 @@ public class AuthService : IAuthService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email),
-            new Claim("name", user.Name),
-            new Claim(ClaimTypes.Role, user.Role),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+            new("name", user.Name),
+            new(ClaimTypes.Role, user.Role),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
         };
+
+        if (user.TenantId.HasValue)
+        {
+            claims.Add(new Claim("tenantId", user.TenantId.Value.ToString()));
+        }
 
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,

@@ -20,6 +20,10 @@ public class ApiClientMap : ClassMap<ApiClient>
         Map(x => x.MaxFileSizeMb).Column("max_file_size_mb").Not.Nullable();
         Map(x => x.WebhookUrl).Column("webhook_url").Length(500);
         Map(x => x.WebhookSecret).Column("webhook_secret").Length(128);
+        Map(x => x.CompanyName).Column("company_name").Length(255);
+        Map(x => x.Cui).Column("cui").Length(20);
+        Map(x => x.ContactEmail).Column("contact_email").Length(255);
+        Map(x => x.TrialExpiresAt).Column("trial_expires_at");
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();
         Map(x => x.UpdatedAt).Column("updated_at").Not.Nullable();
     }

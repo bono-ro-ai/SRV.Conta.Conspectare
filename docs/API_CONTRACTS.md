@@ -276,6 +276,86 @@ Edit the canonical output of a document in `review_required` status without trig
 
 ## Authentication
 
+### POST `/api/v1/auth/signup`
+
+Self-service tenant signup. Creates a new API client (tenant), user, and API key.
+
+**Request** `application/json`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `companyName` | string | Yes | Company name |
+| `cui` | string | No | CUI/CIF (RO prefix stripped automatically) |
+| `email` | string | Yes | Contact email (becomes the user's login) |
+| `password` | string | Yes | Min 10 chars, 1 upper, 1 lower, 1 digit |
+
+**Response** `201 Created`:
+```json
+{
+  "tenantId": 1,
+  "userId": 1,
+  "email": "user@example.com",
+  "role": "user",
+  "apiKey": "csp_abc123...",
+  "apiKeyPrefix": "csp_abc1",
+  "trialExpiresAt": "2026-04-21T10:00:00Z",
+  "token": "eyJ...",
+  "refreshToken": "abc123..."
+}
+```
+
+**Error Responses**:
+- `400 Bad Request` — Missing required fields or weak password
+- `409 Conflict` — Email already registered
+
+## Tenant Settings
+
+### GET `/api/v1/tenant/settings`
+
+Returns current tenant configuration.
+
+**Response** `200 OK`:
+```json
+{
+  "tenantId": 1,
+  "companyName": "Test Company",
+  "cui": "12345678",
+  "contactEmail": "user@example.com",
+  "webhookUrl": "https://example.com/webhook",
+  "hasWebhookSecret": true,
+  "apiKeyPrefix": "csp_abc1",
+  "trialExpiresAt": "2026-04-21T10:00:00Z",
+  "isTrialActive": true
+}
+```
+
+### PUT `/api/v1/tenant/settings`
+
+Update tenant settings. All fields are optional (null = no change).
+
+**Request** `application/json`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `companyName` | string | No | Updated company name |
+| `cui` | string | No | Updated CUI (RO prefix stripped automatically) |
+| `webhookUrl` | string | No | Webhook URL |
+| `webhookSecret` | string | No | Webhook secret |
+
+**Response** `200 OK`: Same schema as GET.
+
+### POST `/api/v1/tenant/settings/rotate-api-key`
+
+Generate a new API key, invalidating the previous one.
+
+**Response** `200 OK`:
+```json
+{
+  "apiKey": "csp_new123...",
+  "apiKeyPrefix": "csp_new1"
+}
+```
+
 ### POST `/api/v1/auth/validate`
 
 Validate an API key.
