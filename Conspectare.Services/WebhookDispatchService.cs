@@ -45,10 +45,21 @@ public class WebhookDispatchService : IWebhookDispatchService
             }
             else if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                ScheduleRetry(delivery, utcNow);
-                _logger.LogWarning(
-                    "Webhook rate-limited for document {DocumentId} (429), will retry (attempt {Attempt}/{Max})",
-                    delivery.DocumentId, delivery.AttemptCount, delivery.MaxAttempts);
+                if (delivery.AttemptCount >= delivery.MaxAttempts)
+                {
+                    delivery.Status = "failed_permanently";
+                    delivery.ErrorMessage = $"Rate-limited: max attempts ({delivery.MaxAttempts}) exceeded";
+                    _logger.LogWarning(
+                        "Webhook failed permanently for document {DocumentId} after {Attempts} attempts (429)",
+                        delivery.DocumentId, delivery.AttemptCount);
+                }
+                else
+                {
+                    ScheduleRetry(delivery, utcNow);
+                    _logger.LogWarning(
+                        "Webhook rate-limited for document {DocumentId} (429), will retry (attempt {Attempt}/{Max})",
+                        delivery.DocumentId, delivery.AttemptCount, delivery.MaxAttempts);
+                }
             }
             else if ((int)response.StatusCode >= 500)
             {
