@@ -45,6 +45,7 @@ public class TriageWorker : DistributedBackgroundService
         var processedCount = 0;
         foreach (var doc in claimedDocs)
         {
+            ct.ThrowIfCancellationRequested();
             var sw = Stopwatch.StartNew();
             try
             {
@@ -52,6 +53,11 @@ public class TriageWorker : DistributedBackgroundService
                 sw.Stop();
                 metrics.RecordProcessingDuration("triage", sw.ElapsedMilliseconds);
                 processedCount++;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                sw.Stop();
+                throw;
             }
             catch (Exception ex)
             {

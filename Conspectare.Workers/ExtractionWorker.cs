@@ -47,6 +47,7 @@ public class ExtractionWorker : DistributedBackgroundService
         var processedCount = 0;
         foreach (var doc in claimedDocs)
         {
+            ct.ThrowIfCancellationRequested();
             var sw = Stopwatch.StartNew();
             try
             {
@@ -62,6 +63,11 @@ public class ExtractionWorker : DistributedBackgroundService
                 sw.Stop();
                 metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
                 processedCount++;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                sw.Stop();
+                throw;
             }
             catch (Exception ex)
             {
