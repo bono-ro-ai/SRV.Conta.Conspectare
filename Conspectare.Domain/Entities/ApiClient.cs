@@ -12,6 +12,10 @@ public class ApiClient
     public virtual int MaxFileSizeMb { get; set; }
     public virtual string WebhookUrl { get; set; }
     public virtual string WebhookSecret { get; set; }
+    public virtual string CompanyName { get; set; }
+    public virtual string Cui { get; set; }
+    public virtual string ContactEmail { get; set; }
+    public virtual DateTime? TrialExpiresAt { get; set; }
     public virtual DateTime CreatedAt { get; set; }
     public virtual DateTime UpdatedAt { get; set; }
 }

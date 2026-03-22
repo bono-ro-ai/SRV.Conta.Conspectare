@@ -9,3 +9,15 @@ public record AuthResponse(string Token, DateTime ExpiresAt, UserInfoResponse Us
 public record UserInfoResponse(long Id, string Email, string Name, string Role);
 
 public record MessageResponse(string Message);
+
+public record SignupRequest(string CompanyName, string Cui, string Email, string Password);
+
+public record SignupResponse(
+    long TenantId,
+    long UserId,
+    string Email,
+    string Role,
+    string ApiKey,
+    string ApiKeyPrefix,
+    DateTime TrialExpiresAt,
+    string Token);
