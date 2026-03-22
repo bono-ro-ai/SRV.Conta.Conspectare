@@ -23,7 +23,16 @@ Conspectare notifies the P&L Expense Tracker service when document processing co
 
 ## II. Background Workers
 
-See `CLAUDE.md` section on Workers. Workers run as `IHostedService` inside the API host process.
+Workers run as `IHostedService` inside the API host process.
+
+| Worker | Job Name | Interval | Description |
+|--------|----------|----------|-------------|
+| `TriageWorker` | `triage` | Signal-driven | Classifies incoming documents |
+| `ExtractionWorker` | `extraction` | Signal-driven | Extracts data from documents via LLM |
+| `WebhookWorker` | `webhook_dispatch` | Signal-driven | Dispatches webhook callbacks to API clients |
+| `VatRetryWorker` | `vat_retry` | 5 min | Retries failed VAT validation calls |
+| `StaleClaimRecoveryWorker` | `stale_claim_recovery` | 2 min | Recovers stuck documents |
+| `UsageAggregationWorker` | `usage_aggregation` | 1 hour | Aggregates daily per-tenant usage metrics into `audit_usage_daily`. Cross-tenant, idempotent (UPSERT on tenant_id + usage_date). |
 
 ## III. Cron Jobs
 

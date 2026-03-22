@@ -366,6 +366,83 @@ secure_compare(expected, actual)
 
 When no webhook secret is configured, the `X-Webhook-Signature` header is omitted.
 
+## Admin — Usage Tracking
+
+### GET `/api/v1/admin/usage`
+
+Get daily usage metrics for a tenant. Admin access required.
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tenantId` | long | Yes | Tenant (API client) ID |
+| `from` | DateTime | Yes | Start date (inclusive) |
+| `to` | DateTime | Yes | End date (inclusive) |
+
+**Response** `200 OK`:
+```json
+{
+  "items": [
+    {
+      "usageDate": "2026-03-21",
+      "documentsIngested": 10,
+      "documentsProcessed": 8,
+      "llmInputTokens": 5000,
+      "llmOutputTokens": 3000,
+      "llmRequests": 12,
+      "storageBytes": 1024000,
+      "apiCalls": 10
+    }
+  ],
+  "tenantId": 1,
+  "from": "2026-03-01T00:00:00Z",
+  "to": "2026-03-22T00:00:00Z"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request` — Missing or invalid parameters
+- `403 Forbidden` — Non-admin API key
+
+### GET `/api/v1/admin/usage/monthly`
+
+Get monthly usage summary for a tenant. Admin access required.
+
+**Query Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tenantId` | long | Yes | Tenant (API client) ID |
+| `from` | DateTime | Yes | Start date (inclusive) |
+| `to` | DateTime | Yes | End date (inclusive) |
+
+**Response** `200 OK`:
+```json
+{
+  "items": [
+    {
+      "year": 2026,
+      "month": 3,
+      "documentsIngested": 150,
+      "documentsProcessed": 120,
+      "llmInputTokens": 75000,
+      "llmOutputTokens": 45000,
+      "llmRequests": 180,
+      "storageBytes": 15360000,
+      "apiCalls": 150
+    }
+  ],
+  "tenantId": 1,
+  "from": "2026-01-01T00:00:00Z",
+  "to": "2026-03-31T00:00:00Z"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request` — Missing or invalid parameters
+- `403 Forbidden` — Non-admin API key
+
 ## Health
 
 ### GET `/health`

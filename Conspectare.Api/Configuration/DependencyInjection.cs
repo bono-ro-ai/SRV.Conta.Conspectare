@@ -122,6 +122,7 @@ internal static class DependencyInjection
         services.AddHostedService<WebhookWorker>();
         services.AddHostedService<VatRetryWorker>();
         services.AddHostedService<StaleClaimRecoveryWorker>();
+        services.AddHostedService<UsageAggregationWorker>();
     }
 
     private static void ConfigureAuthentication(IConfiguration config, IServiceCollection services)
