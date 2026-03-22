@@ -56,7 +56,8 @@ public static class Startup
             app.MapScalarApiReference().AllowAnonymous();
         }
 
-        app.UseMiddleware<ApiKeyAuthMiddleware>();
+        app.UseAuthentication();
+        app.UseAuthorization();
         app.UseMiddleware<TenantMiddleware>();
         app.UseMiddleware<RateLimitingMiddleware>();
 
