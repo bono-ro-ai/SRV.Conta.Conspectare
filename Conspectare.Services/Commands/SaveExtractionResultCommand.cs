@@ -16,30 +16,19 @@ public class SaveExtractionResultCommand(
     {
         var merged = (Document)Session.Merge(document);
 
-        var existingOutput = Session.QueryOver<CanonicalOutput>()
-            .Where(c => c.DocumentId == merged.Id)
-            .SingleOrDefault();
-        if (existingOutput != null)
+        canonicalOutput.Document = merged;
+        canonicalOutput.DocumentId = merged.Id;
+        var existingOutput = Session.CreateSQLQuery(
+                "SELECT id FROM pipe_canonical_outputs WHERE document_id = :docId")
+            .SetParameter("docId", merged.Id)
+            .UniqueResult<long?>();
+        if (existingOutput.HasValue)
         {
-            existingOutput.SchemaVersion = canonicalOutput.SchemaVersion;
-            existingOutput.OutputJson = canonicalOutput.OutputJson;
-            existingOutput.InvoiceNumber = canonicalOutput.InvoiceNumber;
-            existingOutput.IssueDate = canonicalOutput.IssueDate;
-            existingOutput.DueDate = canonicalOutput.DueDate;
-            existingOutput.SupplierCui = canonicalOutput.SupplierCui;
-            existingOutput.CustomerCui = canonicalOutput.CustomerCui;
-            existingOutput.Currency = canonicalOutput.Currency;
-            existingOutput.TotalAmount = canonicalOutput.TotalAmount;
-            existingOutput.VatAmount = canonicalOutput.VatAmount;
-            existingOutput.ConsensusStrategy = canonicalOutput.ConsensusStrategy;
-            existingOutput.WinningModelId = canonicalOutput.WinningModelId;
-            existingOutput.CreatedAt = canonicalOutput.CreatedAt;
-            Session.Update(existingOutput);
+            canonicalOutput.Id = existingOutput.Value;
+            Session.Merge(canonicalOutput);
         }
         else
         {
-            canonicalOutput.Document = merged;
-            canonicalOutput.DocumentId = merged.Id;
             Session.Save(canonicalOutput);
         }
 
