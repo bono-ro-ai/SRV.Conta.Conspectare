@@ -5,6 +5,8 @@ namespace Conspectare.Api.DTOs;
 
 public record DocumentResponse(
     long Id,
+    string DocumentRef,
+    string FiscalCode,
     string ExternalRef,
     string FileName,
     string ContentType,
@@ -56,6 +58,8 @@ public record DocumentResponse(
 
         return new DocumentResponse(
             document.Id,
+            document.DocumentRef,
+            document.FiscalCode,
             document.ExternalRef,
             document.FileName,
             document.ContentType,

@@ -27,6 +27,8 @@ public class DocumentMap : ClassMap<Document>
         Map(x => x.MaxRetries).Column("max_retries").Not.Nullable();
         Map(x => x.ErrorMessage).Column("error_message").Length(2000);
         Map(x => x.RawFileS3Key).Column("raw_file_s3_key").Not.Nullable();
+        Map(x => x.DocumentRef).Column("document_ref");
+        Map(x => x.FiscalCode).Column("fiscal_code");
         Map(x => x.ClientReference).Column("client_reference");
         Map(x => x.Metadata).Column("metadata").CustomSqlType("LONGTEXT");
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();

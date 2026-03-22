@@ -18,6 +18,8 @@ public class Document
     public virtual int MaxRetries { get; set; } = 3;
     public virtual string ErrorMessage { get; set; }
     public virtual string RawFileS3Key { get; set; }
+    public virtual string DocumentRef { get; set; }
+    public virtual string FiscalCode { get; set; }
     public virtual string ClientReference { get; set; }
     public virtual string Metadata { get; set; }
     public virtual DateTime CreatedAt { get; set; }

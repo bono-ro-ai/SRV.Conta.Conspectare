@@ -240,6 +240,32 @@ public class DtoMappingTests
         Assert.False(DocumentResponse.FromEntity(processing, _workflow).IsTerminal);
     }
 
+    [Fact]
+    public void DocumentResponse_FromEntity_MapsDocumentRefAndFiscalCode()
+    {
+        var document = CreateTestDocument();
+        document.DocumentRef = "12345678-26-1";
+        document.FiscalCode = "12345678";
+
+        var result = DocumentResponse.FromEntity(document, _workflow);
+
+        Assert.Equal("12345678-26-1", result.DocumentRef);
+        Assert.Equal("12345678", result.FiscalCode);
+    }
+
+    [Fact]
+    public void DocumentSummaryResponse_FromEntity_MapsDocumentRefAndFiscalCode()
+    {
+        var document = CreateTestDocument();
+        document.DocumentRef = "007-26-3";
+        document.FiscalCode = "007";
+
+        var result = DocumentSummaryResponse.FromEntity(document, _workflow);
+
+        Assert.Equal("007-26-3", result.DocumentRef);
+        Assert.Equal("007", result.FiscalCode);
+    }
+
     private static Document CreateTestDocument()
     {
         return new Document

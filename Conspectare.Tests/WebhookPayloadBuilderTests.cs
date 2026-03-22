@@ -262,4 +262,40 @@ public class WebhookPayloadBuilderTests
         Assert.False(root.TryGetProperty("canonical_output_json", out _));
         Assert.False(root.TryGetProperty("result_summary", out _));
     }
+
+    [Fact]
+    public void Build_IncludesDocumentRefAndFiscalCode()
+    {
+        var doc = new Document
+        {
+            Id = 58,
+            TenantId = 1,
+            Status = DocumentStatus.Completed,
+            DocumentRef = "12345678-26-1",
+            FiscalCode = "12345678",
+        };
+        var json = WebhookPayloadBuilder.Build(doc, FixedUtcNow);
+        var parsed = JsonDocument.Parse(json);
+        var root = parsed.RootElement;
+        Assert.Equal("12345678-26-1", root.GetProperty("document_ref").GetString());
+        Assert.Equal("12345678", root.GetProperty("fiscal_code").GetString());
+    }
+
+    [Fact]
+    public void Build_NullDocumentRef_IncludesNullInPayload()
+    {
+        var doc = new Document
+        {
+            Id = 59,
+            TenantId = 1,
+            Status = DocumentStatus.Completed,
+            DocumentRef = null,
+            FiscalCode = null,
+        };
+        var json = WebhookPayloadBuilder.Build(doc, FixedUtcNow);
+        var parsed = JsonDocument.Parse(json);
+        var root = parsed.RootElement;
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("document_ref").ValueKind);
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("fiscal_code").ValueKind);
+    }
 }

@@ -104,13 +104,20 @@ public class DocumentServiceTests
     private readonly MockTenantContext _tenantContext = new() { TenantId = 1, ApiKeyPrefix = "dp_test_" };
     private readonly DocumentStatusWorkflow _workflow = new();
     private readonly IPipelineSignal _pipelineSignal = Mock.Of<IPipelineSignal>();
+    private readonly Mock<IDocumentRefAllocator> _documentRefAllocator = new();
     private readonly ILogger<DocumentService> _logger = NullLogger<DocumentService>.Instance;
+
+    public DocumentServiceTests()
+    {
+        _documentRefAllocator
+            .Setup(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), It.IsAny<string>()))
+            .ReturnsAsync("007-26-1");
+    }
 
     private DocumentService CreateService(SharedConnectionSessionFactory sharedFactory)
     {
-        // Create a thin adapter that delegates OpenSession to the shared factory
         var adapter = new SessionFactoryAdapter(sharedFactory);
-        return new DocumentService(adapter, _storageService, _tenantContext, _workflow, _pipelineSignal, _logger);
+        return new DocumentService(adapter, _storageService, _tenantContext, _workflow, _pipelineSignal, _documentRefAllocator.Object, _logger);
     }
 
     private ApiClient CreateTenant(ISession session, string name = "Test Tenant")
@@ -175,7 +182,7 @@ public class DocumentServiceTests
         var service = CreateService(sharedFactory);
 
         var (stream, fileName, contentType) = CreateTestFile();
-        var result = await service.IngestAsync(stream, fileName, contentType, "ext-001", "client-ref", "{}", CancellationToken.None);
+        var result = await service.IngestAsync(stream, fileName, contentType, "ext-001", "client-ref", "{}", null, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(202, result.StatusCode);
@@ -198,11 +205,11 @@ public class DocumentServiceTests
         var service = CreateService(sharedFactory);
 
         var (stream1, fileName1, contentType1) = CreateTestFile("file1");
-        var result1 = await service.IngestAsync(stream1, fileName1, contentType1, "dup-ref", null, null, CancellationToken.None);
+        var result1 = await service.IngestAsync(stream1, fileName1, contentType1, "dup-ref", null, null, null, CancellationToken.None);
         Assert.True(result1.IsSuccess);
 
         var (stream2, fileName2, contentType2) = CreateTestFile("file2");
-        var result2 = await service.IngestAsync(stream2, fileName2, contentType2, "dup-ref", null, null, CancellationToken.None);
+        var result2 = await service.IngestAsync(stream2, fileName2, contentType2, "dup-ref", null, null, null, CancellationToken.None);
 
         Assert.True(result2.IsSuccess);
         Assert.Equal(200, result2.StatusCode);
@@ -216,7 +223,7 @@ public class DocumentServiceTests
         var service = CreateService(sharedFactory);
 
         var stream = new MemoryStream(new byte[] { 1, 2, 3 });
-        var result = await service.IngestAsync(stream, "", "text/xml", null, null, null, CancellationToken.None);
+        var result = await service.IngestAsync(stream, "", "text/xml", null, null, null, null, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(400, result.StatusCode);
@@ -233,7 +240,7 @@ public class DocumentServiceTests
         var service = CreateService(sharedFactory);
 
         var (stream, fileName, contentType) = CreateTestFile();
-        var ingestResult = await service.IngestAsync(stream, fileName, contentType, null, null, null, CancellationToken.None);
+        var ingestResult = await service.IngestAsync(stream, fileName, contentType, null, null, null, null, CancellationToken.None);
         Assert.True(ingestResult.IsSuccess);
 
         var getResult = await service.GetByIdAsync(ingestResult.Data.Id, CancellationToken.None);
@@ -271,12 +278,12 @@ public class DocumentServiceTests
         _tenantContext.TenantId = tenant1.Id;
         var service = CreateService(sharedFactory);
         var (s1, f1, c1) = CreateTestFile("t1-file");
-        await service.IngestAsync(s1, f1, c1, null, null, null, CancellationToken.None);
+        await service.IngestAsync(s1, f1, c1, null, null, null, null, CancellationToken.None);
 
         // Ingest for tenant 2
         _tenantContext.TenantId = tenant2.Id;
         var (s2, f2, c2) = CreateTestFile("t2-file");
-        await service.IngestAsync(s2, f2, c2, null, null, null, CancellationToken.None);
+        await service.IngestAsync(s2, f2, c2, null, null, null, null, CancellationToken.None);
 
         // List for tenant 1 only
         _tenantContext.TenantId = tenant1.Id;
@@ -299,9 +306,9 @@ public class DocumentServiceTests
 
         // Ingest two documents (both will be PendingTriage)
         var (s1, f1, c1) = CreateTestFile("file1");
-        await service.IngestAsync(s1, f1, c1, null, null, null, CancellationToken.None);
+        await service.IngestAsync(s1, f1, c1, null, null, null, null, CancellationToken.None);
         var (s2, f2, c2) = CreateTestFile("file2");
-        await service.IngestAsync(s2, f2, c2, null, null, null, CancellationToken.None);
+        await service.IngestAsync(s2, f2, c2, null, null, null, null, CancellationToken.None);
 
         // Filter by PendingTriage should return 2
         var result = await service.ListAsync(DocumentStatus.PendingTriage, null, null, null, 1, 50, CancellationToken.None);
@@ -742,5 +749,50 @@ public class DocumentServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.StatusCode);
+    }
+
+    [Fact]
+    public async Task IngestAsync_WithFiscalCode_SetsDocumentRef()
+    {
+        _documentRefAllocator
+            .Setup(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), "12345678"))
+            .ReturnsAsync("12345678-26-1");
+
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var service = CreateService(sharedFactory);
+
+        var (stream, fileName, contentType) = CreateTestFile();
+        var result = await service.IngestAsync(stream, fileName, contentType, null, null, null, "RO12345678", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("12345678-26-1", result.Data.DocumentRef);
+        Assert.Equal("12345678", result.Data.FiscalCode);
+    }
+
+    [Fact]
+    public async Task IngestAsync_WithoutFiscalCode_UsesAllocatorWithNull()
+    {
+        _documentRefAllocator
+            .Setup(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), "007"))
+            .ReturnsAsync("007-26-1");
+
+        using var sharedFactory = new SharedConnectionSessionFactory();
+        using var setupSession = sharedFactory.OpenSession();
+        var tenant = CreateTenant(setupSession);
+        _tenantContext.TenantId = tenant.Id;
+
+        var service = CreateService(sharedFactory);
+
+        var (stream, fileName, contentType) = CreateTestFile();
+        var result = await service.IngestAsync(stream, fileName, contentType, null, null, null, null, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("007-26-1", result.Data.DocumentRef);
+        Assert.Equal("007", result.Data.FiscalCode);
+        _documentRefAllocator.Verify(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), "007"), Times.Once);
     }
 }
