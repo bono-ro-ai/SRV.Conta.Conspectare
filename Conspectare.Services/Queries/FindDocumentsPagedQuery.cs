@@ -42,7 +42,9 @@ public class FindDocumentsPagedQuery(
             query.AndRestrictionOn(d => d.Status).IsIn(statuses.ToArray());
 
         if (!string.IsNullOrWhiteSpace(search))
-            query.And(Restrictions.InsensitiveLike(nameof(Document.ExternalRef), search, MatchMode.Anywhere));
+            query.And(Restrictions.Disjunction()
+                .Add(Restrictions.InsensitiveLike(nameof(Document.ExternalRef), search, MatchMode.Anywhere))
+                .Add(Restrictions.InsensitiveLike(nameof(Document.DocumentRef), search, MatchMode.Anywhere)));
 
         if (dateFrom.HasValue)
             query.And(d => d.CreatedAt >= dateFrom.Value);

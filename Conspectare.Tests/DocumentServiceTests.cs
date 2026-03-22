@@ -110,8 +110,8 @@ public class DocumentServiceTests
     public DocumentServiceTests()
     {
         _documentRefAllocator
-            .Setup(a => a.AllocateRef(It.IsAny<NHibernate.ISession>(), It.IsAny<string>()))
-            .Returns("007-26-1");
+            .Setup(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), It.IsAny<string>()))
+            .ReturnsAsync("007-26-1");
     }
 
     private DocumentService CreateService(SharedConnectionSessionFactory sharedFactory)
@@ -755,8 +755,8 @@ public class DocumentServiceTests
     public async Task IngestAsync_WithFiscalCode_SetsDocumentRef()
     {
         _documentRefAllocator
-            .Setup(a => a.AllocateRef(It.IsAny<NHibernate.ISession>(), "RO12345678"))
-            .Returns("12345678-26-1");
+            .Setup(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), "12345678"))
+            .ReturnsAsync("12345678-26-1");
 
         using var sharedFactory = new SharedConnectionSessionFactory();
         using var setupSession = sharedFactory.OpenSession();
@@ -777,8 +777,8 @@ public class DocumentServiceTests
     public async Task IngestAsync_WithoutFiscalCode_UsesAllocatorWithNull()
     {
         _documentRefAllocator
-            .Setup(a => a.AllocateRef(It.IsAny<NHibernate.ISession>(), null))
-            .Returns("007-26-1");
+            .Setup(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), "007"))
+            .ReturnsAsync("007-26-1");
 
         using var sharedFactory = new SharedConnectionSessionFactory();
         using var setupSession = sharedFactory.OpenSession();
@@ -793,6 +793,6 @@ public class DocumentServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal("007-26-1", result.Data.DocumentRef);
         Assert.Equal("007", result.Data.FiscalCode);
-        _documentRefAllocator.Verify(a => a.AllocateRef(It.IsAny<NHibernate.ISession>(), null), Times.Once);
+        _documentRefAllocator.Verify(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), "007"), Times.Once);
     }
 }

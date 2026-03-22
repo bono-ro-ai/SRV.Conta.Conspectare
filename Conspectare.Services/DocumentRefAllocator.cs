@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Conspectare.Services.Interfaces;
 using ISession = NHibernate.ISession;
 
@@ -8,26 +7,23 @@ public class DocumentRefAllocator : IDocumentRefAllocator
 {
     private const string FallbackFiscalCode = "007";
 
-    public string AllocateRef(ISession session, string fiscalCode)
+    public async Task<string> AllocateRefAsync(ISession session, string fiscalCode)
     {
         var normalized = NormalizeFiscalCode(fiscalCode);
         var year = DateTime.UtcNow.Year % 100;
 
         var sql = @"
             INSERT INTO cfg_document_ref_sequences (fiscal_code, year, last_seq)
-            VALUES (:fc, :yr, 1)
-            ON DUPLICATE KEY UPDATE last_seq = last_seq + 1";
+            VALUES (:fc, :yr, LAST_INSERT_ID(1))
+            ON DUPLICATE KEY UPDATE last_seq = LAST_INSERT_ID(last_seq + 1)";
 
-        session.CreateSQLQuery(sql)
+        await session.CreateSQLQuery(sql)
             .SetParameter("fc", normalized)
             .SetParameter("yr", year)
-            .ExecuteUpdate();
+            .ExecuteUpdateAsync();
 
-        var seq = session.CreateSQLQuery(
-                "SELECT last_seq FROM cfg_document_ref_sequences WHERE fiscal_code = :fc AND year = :yr")
-            .SetParameter("fc", normalized)
-            .SetParameter("yr", year)
-            .UniqueResult<int>();
+        var seq = await session.CreateSQLQuery("SELECT LAST_INSERT_ID()")
+            .UniqueResultAsync<long>();
 
         return $"{normalized}-{year}-{seq}";
     }

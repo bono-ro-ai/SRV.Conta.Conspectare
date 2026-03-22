@@ -156,7 +156,7 @@ public class DocumentService : IDocumentService
         using var transaction = session.BeginTransaction();
 
         var normalizedFiscalCode = DocumentRefAllocator.NormalizeFiscalCode(fiscalCode);
-        var documentRef = _documentRefAllocator.AllocateRef(session, fiscalCode);
+        var documentRef = await _documentRefAllocator.AllocateRefAsync(session, normalizedFiscalCode);
         document.DocumentRef = documentRef;
         document.FiscalCode = normalizedFiscalCode;
 
