@@ -173,4 +173,15 @@ public class DocumentsController : ControllerBase
 
         return Ok(DocumentResponse.FromEntity(result.Data, _workflow));
     }
+
+    [HttpPatch("{id:long}/canonical-output")]
+    public async Task<IActionResult> UpdateCanonicalOutput(long id, [FromBody] UpdateCanonicalOutputRequest request, CancellationToken ct)
+    {
+        var result = await _documentService.UpdateCanonicalOutputAsync(id, request.CanonicalOutputJson, ct);
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        return Ok(DocumentResponse.FromEntity(result.Data, _workflow));
+    }
 }

@@ -10,4 +10,5 @@ public interface IDocumentService
     Task<OperationResult<PagedResult<Document>>> ListAsync(string status, string search, DateTime? dateFrom, DateTime? dateTo, int page, int pageSize, CancellationToken ct = default);
     Task<OperationResult<Document>> RetryAsync(long id, CancellationToken ct = default);
     Task<OperationResult<Document>> ResolveAsync(long id, string action, string canonicalOutputJson, CancellationToken ct = default);
+    Task<OperationResult<Document>> UpdateCanonicalOutputAsync(long id, string canonicalOutputJson, CancellationToken ct = default);
 }
