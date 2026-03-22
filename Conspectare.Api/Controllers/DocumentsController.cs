@@ -13,17 +13,20 @@ public class DocumentsController : ControllerBase
     private readonly IDocumentService _documentService;
     private readonly IStorageService _storageService;
     private readonly DocumentStatusWorkflow _workflow;
+    private readonly ITenantContext _tenant;
     private readonly ILogger<DocumentsController> _logger;
 
     public DocumentsController(
         IDocumentService documentService,
         IStorageService storageService,
         DocumentStatusWorkflow workflow,
+        ITenantContext tenantContext,
         ILogger<DocumentsController> logger)
     {
         _documentService = documentService;
         _storageService = storageService;
         _workflow = workflow;
+        _tenant = tenantContext;
         _logger = logger;
     }
 
@@ -64,6 +67,16 @@ public class DocumentsController : ControllerBase
                 Title = "Bad Request",
                 Status = StatusCodes.Status400BadRequest,
                 Detail = $"Content type '{file.ContentType}' is not supported."
+            });
+
+        var maxBytes = (long)_tenant.MaxFileSizeMb * 1024 * 1024;
+        if (maxBytes > 0 && file.Length > maxBytes)
+            return StatusCode(StatusCodes.Status413PayloadTooLarge, new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/413",
+                Title = "Payload Too Large",
+                Status = StatusCodes.Status413PayloadTooLarge,
+                Detail = $"File size {file.Length / (1024 * 1024.0):F1} MB exceeds the maximum allowed size of {_tenant.MaxFileSizeMb} MB."
             });
 
         using var stream = file.OpenReadStream();
