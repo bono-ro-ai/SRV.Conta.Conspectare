@@ -2,11 +2,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Conspectare.Api.DTOs;
 using Conspectare.Api.Extensions;
-using Conspectare.Services.Configuration;
 using Conspectare.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 
 namespace Conspectare.Api.Controllers;
 
@@ -15,14 +13,10 @@ namespace Conspectare.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
-    private readonly ITenantContext _tenant;
-    private readonly JwtSettings _jwtSettings;
 
-    public AuthController(IAuthService authService, ITenantContext tenant, IOptions<JwtSettings> jwtSettings)
+    public AuthController(IAuthService authService)
     {
         _authService = authService;
-        _tenant = tenant;
-        _jwtSettings = jwtSettings.Value;
     }
 
     [HttpPost("login")]
@@ -45,7 +39,7 @@ public class AuthController : ControllerBase
         if (!result.IsSuccess)
             return result.ToActionResult();
 
-        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken, _jwtSettings.RefreshTokenExpirationDays);
+        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken);
 
         var response = new AuthResponse(
             result.Data.Token,
@@ -56,20 +50,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    [Authorize]
+    [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        if (!_tenant.IsAdmin)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
-            {
-                Type = "https://httpstatuses.com/403",
-                Title = "Forbidden",
-                Status = StatusCodes.Status403Forbidden,
-                Detail = "Only administrators can register new users."
-            });
-        }
-
         if (request == null || string.IsNullOrWhiteSpace(request.Email) ||
             string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Password))
         {
@@ -82,17 +65,14 @@ public class AuthController : ControllerBase
             });
         }
 
-        if (request.Password.Length < 10 ||
-            !request.Password.Any(char.IsUpper) ||
-            !request.Password.Any(char.IsLower) ||
-            !request.Password.Any(char.IsDigit))
+        if (request.Password.Length < 8)
         {
             return BadRequest(new ProblemDetails
             {
                 Type = "https://httpstatuses.com/400",
                 Title = "Bad Request",
                 Status = StatusCodes.Status400BadRequest,
-                Detail = "Password must be at least 10 characters and contain at least one uppercase letter, one lowercase letter, and one digit."
+                Detail = "Password must be at least 8 characters."
             });
         }
 
@@ -130,7 +110,7 @@ public class AuthController : ControllerBase
             return result.ToActionResult();
         }
 
-        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken, _jwtSettings.RefreshTokenExpirationDays);
+        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken);
 
         var response = new AuthResponse(
             result.Data.Token,

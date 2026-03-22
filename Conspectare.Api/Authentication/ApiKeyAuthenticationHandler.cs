@@ -7,6 +7,7 @@ using Conspectare.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
 using NHibernate;
+using NHibernate.Criterion;
 using ISession = NHibernate.ISession;
 using ILoggerFactory = Microsoft.Extensions.Logging.ILoggerFactory;
 
