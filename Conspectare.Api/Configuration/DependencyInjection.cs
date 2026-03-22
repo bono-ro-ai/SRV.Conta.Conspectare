@@ -174,4 +174,54 @@ internal static class DependencyInjection
 
         services.AddAuthorization();
     }
+
+    private static void ConfigureAuthentication(IConfiguration config, IServiceCollection services)
+    {
+        var jwtSection = config.GetSection("Jwt");
+        var secret = jwtSection.GetValue<string>("Secret") ?? string.Empty;
+        var issuer = jwtSection.GetValue<string>("Issuer") ?? "conspectare-api";
+        var audience = jwtSection.GetValue<string>("Audience") ?? "conspectare-dashboard";
+
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32)
+            throw new InvalidOperationException("JWT Secret must be at least 32 characters");
+
+        services.AddAuthentication(options =>
+        {
+            options.DefaultScheme = AuthSchemeConstants.DualAuth;
+            options.DefaultChallengeScheme = AuthSchemeConstants.DualAuth;
+        })
+        .AddPolicyScheme(AuthSchemeConstants.DualAuth, AuthSchemeConstants.DualAuth, options =>
+        {
+            options.ForwardDefaultSelector = context =>
+            {
+                var authHeader = context.Request.Headers.Authorization.ToString();
+                if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.Ordinal))
+                {
+                    var token = authHeader["Bearer ".Length..].Trim();
+                    if (token.Contains('.'))
+                    {
+                        return AuthSchemeConstants.JwtBearer;
+                    }
+                }
+                return AuthSchemeConstants.ApiKey;
+            };
+        })
+        .AddJwtBearer(AuthSchemeConstants.JwtBearer, options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = issuer,
+                ValidAudience = audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
+                ClockSkew = TimeSpan.FromSeconds(30)
+            };
+        })
+        .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(AuthSchemeConstants.ApiKey, null);
+
+        services.AddAuthorization();
+    }
 }
