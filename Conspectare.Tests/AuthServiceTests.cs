@@ -3,9 +3,12 @@ using Conspectare.Infrastructure.NHibernate.Helpers;
 using Conspectare.Services;
 using Conspectare.Services.Configuration;
 using Conspectare.Services.Core.Database;
+using Conspectare.Services.Interfaces;
 using Conspectare.Tests.Helpers;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Moq;
 using NHibernate;
 using NHibernate.Tool.hbm2ddl;
 using Xunit;
@@ -32,7 +35,14 @@ public class AuthServiceTests : IDisposable
     {
         _helper = new AuthTestNHibernateHelper();
         NHibernateConspectare.ConfigureForTests(_helper);
-        _authService = new AuthService(Options.Create(TestJwtSettings));
+        var emailServiceMock = new Mock<IEmailService>();
+        emailServiceMock.Setup(e => e.SendMagicLinkEmailAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+        _authService = new AuthService(
+            Options.Create(TestJwtSettings),
+            emailServiceMock.Object,
+            Options.Create(new AppSettings { FrontendUrl = "https://test.com" }),
+            NullLogger<AuthService>.Instance);
     }
 
     public void Dispose()

@@ -10,6 +10,7 @@ using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services;
 using Conspectare.Services.Configuration;
+using Conspectare.Services.Email;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 using Conspectare.Services.Extraction;
 using Conspectare.Services.Interfaces;
@@ -55,6 +56,9 @@ internal static class DependencyInjection
         services.AddScoped<ITenantContext, TenantContext>();
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
+        services.Configure<MandrillSettings>(config.GetSection("Mandrill"));
+        services.Configure<AppSettings>(config.GetSection("App"));
+        services.AddHttpClient<IEmailService, MandrillEmailService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
 

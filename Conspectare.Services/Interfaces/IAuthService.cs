@@ -23,4 +23,6 @@ public interface IAuthService
     Task<OperationResult<AuthResult>> RefreshTokenAsync(string refreshToken);
     Task<OperationResult<bool>> RevokeAllAsync(long userId);
     Task<OperationResult<User>> GetUserByIdAsync(long userId);
+    Task<OperationResult<string>> SendMagicLinkAsync(string email, string ipAddress);
+    Task<OperationResult<AuthResult>> VerifyMagicLinkAsync(string token);
 }

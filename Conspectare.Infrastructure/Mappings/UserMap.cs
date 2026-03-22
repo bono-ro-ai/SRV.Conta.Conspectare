@@ -13,7 +13,7 @@ public class UserMap : ClassMap<User>
 
         Map(x => x.Email).Column("email").Not.Nullable().Length(255).UniqueKey("ux_sec_users_email");
         Map(x => x.Name).Column("name").Not.Nullable().Length(255);
-        Map(x => x.PasswordHash).Column("password_hash").Not.Nullable().Length(255);
+        Map(x => x.PasswordHash).Column("password_hash").Length(255);
         Map(x => x.Role).Column("role").Not.Nullable().Length(50);
         Map(x => x.IsActive).Column("is_active").Not.Nullable();
         Map(x => x.FailedLoginAttempts).Column("failed_login_attempts").Not.Nullable();

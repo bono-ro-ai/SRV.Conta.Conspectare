@@ -308,6 +308,66 @@ Self-service tenant signup. Creates a new API client (tenant), user, and API key
 - `400 Bad Request` — Missing required fields or weak password
 - `409 Conflict` — Email already registered
 
+### POST `/api/v1/auth/magic-link/send`
+
+Request a magic link for passwordless authentication. Creates a new user if the email is not registered.
+
+**Request** `application/json`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `email` | string | Yes | Email address |
+
+**Response** `200 OK`:
+```json
+{
+  "message": "Dacă există un cont cu acest email, un link de autentificare a fost trimis."
+}
+```
+
+**Behavior**:
+- If no user exists with the given email, one is auto-created (first user gets `admin` role, subsequent get `user` role, `passwordHash` is null)
+- Generates a 32-byte random token, hashes with SHA-256, stores in `sec_magic_link_tokens`
+- Sends email via Mandrill with a link to `{FrontendUrl}/auth/magic-link?token={rawToken}`
+- Token expires in 15 minutes
+
+**Error Responses**:
+- `400 Bad Request` — Missing email
+
+### POST `/api/v1/auth/magic-link/verify`
+
+Verify a magic link token and return JWT + refresh token.
+
+**Request** `application/json`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `token` | string | Yes | Raw token from the magic link URL |
+
+**Response** `200 OK`:
+```json
+{
+  "token": "eyJ...",
+  "expiresAt": "2026-03-22T10:15:00Z",
+  "user": {
+    "id": 1,
+    "email": "user@example.com",
+    "name": "user",
+    "role": "admin"
+  }
+}
+```
+
+**Behavior**:
+- Hashes the raw token and looks up in `sec_magic_link_tokens`
+- Validates: token exists, not already used, not expired
+- Marks token as used (`used_at` = now)
+- Updates user `last_login_at`
+- Returns JWT access token + sets refresh token cookie
+
+**Error Responses**:
+- `400 Bad Request` — Missing token, invalid/expired/already-used token
+
 ## Tenant Settings
 
 ### GET `/api/v1/tenant/settings`

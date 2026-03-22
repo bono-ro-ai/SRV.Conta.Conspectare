@@ -3,10 +3,12 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Conspectare.Domain.Entities;
+using Conspectare.Services.Auth;
 using Conspectare.Services.Commands;
 using Conspectare.Services.Configuration;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Queries;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -15,13 +17,20 @@ namespace Conspectare.Services;
 public class AuthService : IAuthService
 {
     private readonly JwtSettings _jwtSettings;
+    private readonly IEmailService _emailService;
+    private readonly AppSettings _appSettings;
+    private readonly ILogger<AuthService> _logger;
     private const int MaxFailedAttempts = 5;
+    private const int MagicLinkExpiryMinutes = 15;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
     private static readonly string DummyHash = BCrypt.Net.BCrypt.HashPassword("dummy-timing-safe", workFactor: 12);
 
-    public AuthService(IOptions<JwtSettings> jwtSettings)
+    public AuthService(IOptions<JwtSettings> jwtSettings, IEmailService emailService, IOptions<AppSettings> appSettings, ILogger<AuthService> logger)
     {
         _jwtSettings = jwtSettings.Value;
+        _emailService = emailService;
+        _appSettings = appSettings.Value;
+        _logger = logger;
     }
 
     public Task<OperationResult<AuthResult>> LoginAsync(string email, string password)
@@ -43,6 +52,11 @@ public class AuthService : IAuthService
         {
             user.FailedLoginAttempts = 0;
             user.LockedUntil = null;
+        }
+
+        if (string.IsNullOrEmpty(user.PasswordHash))
+        {
+            return Task.FromResult(OperationResult<AuthResult>.Unauthorized("Invalid email or password."));
         }
 
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
@@ -235,6 +249,104 @@ public class AuthService : IAuthService
             return Task.FromResult(OperationResult<User>.NotFound("User not found."));
         }
         return Task.FromResult(OperationResult<User>.Success(user));
+    }
+
+    public async Task<OperationResult<string>> SendMagicLinkAsync(string email, string ipAddress)
+    {
+        var emailLower = email.ToLowerInvariant().Trim();
+
+        using var session = Core.Database.NHibernateConspectare.OpenSession();
+        using var transaction = session.BeginTransaction();
+
+        var user = session.QueryOver<User>()
+            .Where(u => u.Email == emailLower)
+            .SingleOrDefault();
+
+        if (user == null)
+        {
+            var now = DateTime.UtcNow;
+            user = new User
+            {
+                Email = emailLower,
+                Name = emailLower.Split('@')[0],
+                PasswordHash = null,
+                Role = "user",
+                IsActive = true,
+                FailedLoginAttempts = 0,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            session.Save(user);
+            _logger.LogInformation("Auto-created user via magic link for {MaskedEmail} (role: user, id: {UserId})",
+                AuthTokenHelper.MaskEmail(emailLower), user.Id);
+        }
+
+        var rawToken = AuthTokenHelper.GenerateRawToken();
+        var tokenHash = AuthTokenHelper.HashToken(rawToken);
+        var magicLinkToken = new MagicLinkToken
+        {
+            UserId = user.Id,
+            User = user,
+            TokenHash = tokenHash,
+            Email = emailLower,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(MagicLinkExpiryMinutes),
+            CreatedAt = DateTime.UtcNow,
+            IpAddress = ipAddress
+        };
+        session.Save(magicLinkToken);
+        session.Flush();
+        transaction.Commit();
+
+        var frontendUrl = _appSettings.FrontendUrl.TrimEnd('/');
+        var magicLinkUrl = $"{frontendUrl}/auth/magic-link?token={Uri.EscapeDataString(rawToken)}";
+        await _emailService.SendMagicLinkEmailAsync(emailLower, magicLinkUrl);
+
+        _logger.LogInformation("Magic link sent to {MaskedEmail} (id: {UserId})",
+            AuthTokenHelper.MaskEmail(emailLower), user.Id);
+
+        return OperationResult<string>.Success(
+            "Dacă există un cont cu acest email, un link de autentificare a fost trimis.");
+    }
+
+    public Task<OperationResult<AuthResult>> VerifyMagicLinkAsync(string token)
+    {
+        var tokenHash = AuthTokenHelper.HashToken(token);
+        var magicToken = new LoadMagicLinkByHashQuery(tokenHash).Execute();
+
+        if (magicToken == null)
+            return Task.FromResult(OperationResult<AuthResult>.BadRequest("Link invalid sau expirat."));
+
+        if (magicToken.UsedAt != null)
+            return Task.FromResult(OperationResult<AuthResult>.BadRequest("Link invalid sau expirat."));
+
+        if (magicToken.ExpiresAt <= DateTime.UtcNow)
+            return Task.FromResult(OperationResult<AuthResult>.BadRequest("Link invalid sau expirat."));
+
+        var user = magicToken.User;
+        if (user == null)
+            return Task.FromResult(OperationResult<AuthResult>.BadRequest("Link invalid sau expirat."));
+
+        magicToken.UsedAt = DateTime.UtcNow;
+        user.LastLoginAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        using var session = Core.Database.NHibernateConspectare.OpenSession();
+        using var tran = session.BeginTransaction();
+        session.Update(magicToken);
+        session.Update(user);
+        var (refreshEntity, rawRefreshToken) = CreateRefreshToken(user.Id);
+        session.Save(refreshEntity);
+        session.Flush();
+        tran.Commit();
+
+        var jwtToken = GenerateJwtToken(user);
+        var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes);
+
+        _logger.LogInformation("Magic link verified for {MaskedEmail} (id: {UserId})",
+            AuthTokenHelper.MaskEmail(user.Email), user.Id);
+
+        return Task.FromResult(OperationResult<AuthResult>.Success(
+            new AuthResult(jwtToken, expiresAt, user, rawRefreshToken)));
     }
 
     private string GenerateJwtToken(User user)
