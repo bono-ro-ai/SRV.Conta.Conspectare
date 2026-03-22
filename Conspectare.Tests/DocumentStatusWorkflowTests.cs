@@ -18,6 +18,7 @@ public class DocumentStatusWorkflowTests
     [InlineData(DocumentStatus.Extracting, DocumentStatus.Completed)]
     [InlineData(DocumentStatus.Extracting, DocumentStatus.ExtractionFailed)]
     [InlineData(DocumentStatus.Extracting, DocumentStatus.ReviewRequired)]
+    [InlineData(DocumentStatus.Extracting, DocumentStatus.Failed)]
     [InlineData(DocumentStatus.ExtractionFailed, DocumentStatus.PendingTriage)]
     [InlineData(DocumentStatus.ExtractionFailed, DocumentStatus.Failed)]
     [InlineData(DocumentStatus.ReviewRequired, DocumentStatus.PendingTriage)]
@@ -62,7 +63,7 @@ public class DocumentStatusWorkflowTests
     [InlineData(DocumentStatus.PendingTriage, 1)]
     [InlineData(DocumentStatus.Triaging, 3)]
     [InlineData(DocumentStatus.PendingExtraction, 1)]
-    [InlineData(DocumentStatus.Extracting, 3)]
+    [InlineData(DocumentStatus.Extracting, 4)]
     [InlineData(DocumentStatus.ExtractionFailed, 2)]
     [InlineData(DocumentStatus.ReviewRequired, 3)]
     public void GetAvailableTransitions_ReturnsCorrectCount(string status, int expectedCount)

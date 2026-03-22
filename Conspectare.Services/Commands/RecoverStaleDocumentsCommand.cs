@@ -14,13 +14,20 @@ public class RecoverStaleDocumentsCommand(DateTime cutoff) : NHibernateConspecta
             .SetParameter("staleStatus", DocumentStatus.Triaging)
             .SetParameter("cutoff", cutoff)
             .ExecuteUpdate();
-        var extractingCount = Session.CreateSQLQuery(
+        var extractingExhaustedCount = Session.CreateSQLQuery(
                 "UPDATE pipe_documents SET status = :newStatus, updated_at = UTC_TIMESTAMP() " +
-                "WHERE status = :staleStatus AND updated_at < :cutoff")
+                "WHERE status = :staleStatus AND updated_at < :cutoff AND retry_count >= max_retries")
+            .SetParameter("newStatus", DocumentStatus.Failed)
+            .SetParameter("staleStatus", DocumentStatus.Extracting)
+            .SetParameter("cutoff", cutoff)
+            .ExecuteUpdate();
+        var extractingRetryableCount = Session.CreateSQLQuery(
+                "UPDATE pipe_documents SET status = :newStatus, updated_at = UTC_TIMESTAMP() " +
+                "WHERE status = :staleStatus AND updated_at < :cutoff AND retry_count < max_retries")
             .SetParameter("newStatus", DocumentStatus.PendingExtraction)
             .SetParameter("staleStatus", DocumentStatus.Extracting)
             .SetParameter("cutoff", cutoff)
             .ExecuteUpdate();
-        return triagingCount + extractingCount;
+        return triagingCount + extractingExhaustedCount + extractingRetryableCount;
     }
 }

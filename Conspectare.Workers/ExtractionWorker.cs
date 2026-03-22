@@ -67,9 +67,7 @@ public class ExtractionWorker : DistributedBackgroundService
             {
                 sw.Stop();
                 metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
-                metrics.RecordDocumentFailed("extraction", "unhandled_error");
-                logger.LogError(ex,
-                    "ExtractionWorker: unhandled error for document {DocumentId}", doc.Id);
+                HandleExtractionError(doc, workflow, metrics, ex, DateTime.UtcNow, logger);
             }
         }
         return processedCount;
