@@ -9,13 +9,14 @@ public class Migration_008_SeedPnlApiClient : Migration
             .AddColumn("webhook_secret").AsString(128).Nullable();
         var pnlApiUrl = Environment.GetEnvironmentVariable("PNL_API_URL") ?? "http://localhost:5200";
         var webhookUrl = $"{pnlApiUrl}/api/v1/webhooks/conspectare";
+        var webhookSecret = Environment.GetEnvironmentVariable("PNL_WEBHOOK_SECRET") ?? "whsec_dev_placeholder";
         Insert.IntoTable("cfg_api_clients").Row(new
         {
             name = "P&L Expense Tracker",
             api_key_hash = "98878f43563fda8c14ea05c299b39fc2021f7abac257daa9b55158fe124f88cc",
             api_key_prefix = "csp_pnl_",
             webhook_url = webhookUrl,
-            webhook_secret = "whsec_pnl_a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+            webhook_secret = webhookSecret,
             is_active = true,
             is_admin = false,
             rate_limit_per_min = 60,
