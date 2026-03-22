@@ -46,6 +46,7 @@ public static class Startup
         runner.MigrateUp();
 
         app.UseExceptionHandler();
+        app.UseMiddleware<CorrelationIdMiddleware>();
         app.UseForwardedHeaders();
         app.UseRouting();
         app.UseCors();
