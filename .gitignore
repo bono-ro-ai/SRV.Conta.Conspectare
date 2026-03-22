@@ -310,3 +310,4 @@ dashboard/
 
 # Claude settings
 /.claude/settings.local.json
+.claude/worktrees/
