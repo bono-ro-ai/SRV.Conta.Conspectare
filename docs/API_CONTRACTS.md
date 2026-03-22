@@ -1,6 +1,6 @@
 # API Contracts
 
-Last updated: 2026-03-20
+Last updated: 2026-03-22
 
 All endpoints require `Authorization: Bearer <api_key>` header.
 
@@ -257,6 +257,70 @@ Validate an API key.
 
 **Error Responses**:
 - `401 Unauthorized` — Invalid API key
+
+## Webhook Events
+
+When a document reaches a terminal or review-required status, a webhook is dispatched to the API client's configured `webhookUrl`.
+
+### Payload Schema
+
+```json
+{
+  "event": "document.status_changed",
+  "document_id": 42,
+  "external_ref": "uuid-or-null",
+  "status": "completed",
+  "timestamp": "2026-03-20T12:00:00.0000000Z",
+  "client_reference": "client-ref-or-null",
+  "document_type": "invoice",
+  "confidence": 0.95,
+  "completed_at": "2026-03-20T14:30:00.0000000Z",
+  "result_summary": { "invoice_number": "FAC-001", "total_amount": 1190.00 },
+  "canonical_output_json": "{\"invoice_number\":\"FAC-001\",\"total_amount\":1190.00}",
+  "error_message": null,
+  "review_flags": [
+    {
+      "flag_type": "confidence_low",
+      "severity": "warning",
+      "message": "Low extraction confidence",
+      "is_resolved": false
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `event` | string | Always `document.status_changed` |
+| `document_id` | long | Document ID |
+| `external_ref` | string? | External reference (from upload or X-Request-Id) |
+| `status` | string | Document status: `completed`, `failed`, `rejected`, `review_required` |
+| `timestamp` | string | ISO 8601 UTC timestamp of the event |
+| `client_reference` | string? | Client-provided reference from upload |
+| `document_type` | string? | Detected document type (e.g., `invoice`) |
+| `confidence` | decimal? | Triage confidence score (0.0 - 1.0) |
+| `completed_at` | string? | ISO 8601 UTC timestamp when document completed |
+| `result_summary` | object? | Parsed canonical output (structured JSON) |
+| `canonical_output_json` | string? | Raw canonical output JSON string |
+| `error_message` | string? | Error message (present when status is `failed`) |
+| `review_flags` | array? | Review flags (present when explicitly passed) |
+
+### Webhook Signature (X-Webhook-Signature)
+
+When an API client has a `webhookSecret` configured, each webhook delivery includes an `X-Webhook-Signature` header for payload verification.
+
+**Signature format**: `sha256=<lowercase hex HMAC-SHA256 digest>`
+
+**Computation**: HMAC-SHA256 of the raw JSON payload body using the webhook secret as key.
+
+**Verification example** (pseudocode):
+```
+expected = "sha256=" + hex(hmac_sha256(webhook_secret, raw_body))
+actual = request.headers["X-Webhook-Signature"]
+secure_compare(expected, actual)
+```
+
+When no webhook secret is configured, the `X-Webhook-Signature` header is omitted.
 
 ## Health
 

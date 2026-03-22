@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Conspectare.Domain.Entities;
 using Conspectare.Services.Interfaces;
 using Microsoft.Extensions.Logging;
@@ -31,8 +33,16 @@ public class WebhookDispatchService : IWebhookDispatchService
 
         try
         {
-            using var content = new StringContent(delivery.PayloadJson, System.Text.Encoding.UTF8, "application/json");
-            using var response = await _httpClient.PostAsync(delivery.WebhookUrl, content, ct);
+            using var content = new StringContent(delivery.PayloadJson, Encoding.UTF8, "application/json");
+            using var request = new HttpRequestMessage(HttpMethod.Post, delivery.WebhookUrl) { Content = content };
+            if (!string.IsNullOrEmpty(delivery.WebhookSecret))
+            {
+                using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(delivery.WebhookSecret));
+                var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(delivery.PayloadJson));
+                var signature = "sha256=" + Convert.ToHexString(hash).ToLowerInvariant();
+                request.Headers.Add("X-Webhook-Signature", signature);
+            }
+            using var response = await _httpClient.SendAsync(request, ct);
             delivery.HttpStatusCode = (int)response.StatusCode;
 
             if (response.IsSuccessStatusCode)

@@ -179,7 +179,7 @@ public class ExtractionWorker : DistributedBackgroundService
             metrics.RecordDocumentCompleted("extraction");
         else if (nextStatus == DocumentStatus.ReviewRequired)
             metrics.RecordDocumentCompleted("extraction_review_required");
-        EnqueueWebhookIfNeeded(doc, logger);
+        EnqueueWebhookIfNeeded(doc, logger, canonicalOutput, reviewFlags);
         logger.LogInformation(
             "ExtractionWorker: document {DocumentId} extracted -> {NextStatus} " +
             "(schema={SchemaVersion}, flags={FlagCount})",
@@ -317,7 +317,7 @@ public class ExtractionWorker : DistributedBackgroundService
             metrics.RecordDocumentCompleted("extraction");
         else if (nextStatus == DocumentStatus.ReviewRequired)
             metrics.RecordDocumentCompleted("extraction_review_required");
-        EnqueueWebhookIfNeeded(doc, logger);
+        EnqueueWebhookIfNeeded(doc, logger, canonicalOutput, reviewFlags);
         logger.LogInformation(
             "ExtractionWorker: document {DocumentId} multi-model extracted -> {NextStatus} " +
             "(strategy={Strategy}, winner={Winner}, providers={ProviderCount})",
@@ -392,12 +392,13 @@ public class ExtractionWorker : DistributedBackgroundService
             "(retry {RetryCount}/{MaxRetries})",
             doc.Id, nextStatus, doc.RetryCount, doc.MaxRetries);
     }
-    private static void EnqueueWebhookIfNeeded(Document doc, ILogger logger)
+    private static void EnqueueWebhookIfNeeded(Document doc, ILogger logger,
+        CanonicalOutput canonicalOutput = null, IList<ReviewFlag> reviewFlags = null)
     {
         try
         {
             var client = new LoadApiClientByIdQuery(doc.TenantId).Execute();
-            WebhookEnqueuer.EnqueueIfNeeded(doc, client, DateTime.UtcNow);
+            WebhookEnqueuer.EnqueueIfNeeded(doc, client, DateTime.UtcNow, canonicalOutput, reviewFlags);
         }
         catch (Exception ex)
         {

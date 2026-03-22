@@ -7,6 +7,7 @@ public class WebhookDelivery
     public virtual long TenantId { get; set; }
     public virtual string WebhookUrl { get; set; }
     public virtual string PayloadJson { get; set; }
+    public virtual string WebhookSecret { get; set; }
     public virtual string Status { get; set; }
     public virtual int HttpStatusCode { get; set; }
     public virtual string ErrorMessage { get; set; }
