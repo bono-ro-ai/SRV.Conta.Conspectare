@@ -12,18 +12,21 @@ public class DocumentRefAllocator : IDocumentRefAllocator
         var normalized = NormalizeFiscalCode(fiscalCode);
         var year = DateTime.UtcNow.Year % 100;
 
-        var sql = @"
+        var upsertSql = @"
             INSERT INTO cfg_document_ref_sequences (fiscal_code, year, last_seq)
-            VALUES (:fc, :yr, LAST_INSERT_ID(1))
-            ON DUPLICATE KEY UPDATE last_seq = LAST_INSERT_ID(last_seq + 1)";
+            VALUES (:fc, :yr, 1)
+            ON DUPLICATE KEY UPDATE last_seq = last_seq + 1";
 
-        await session.CreateSQLQuery(sql)
+        await session.CreateSQLQuery(upsertSql)
             .SetParameter("fc", normalized)
             .SetParameter("yr", year)
             .ExecuteUpdateAsync();
 
-        var seq = await session.CreateSQLQuery("SELECT LAST_INSERT_ID()")
-            .UniqueResultAsync<long>();
+        var seq = await session.CreateSQLQuery(
+                "SELECT last_seq FROM cfg_document_ref_sequences WHERE fiscal_code = :fc AND year = :yr")
+            .SetParameter("fc", normalized)
+            .SetParameter("yr", year)
+            .UniqueResultAsync<int>();
 
         return $"{normalized}-{year}-{seq}";
     }
