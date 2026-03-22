@@ -17,6 +17,7 @@ public class AuthService : IAuthService
     private readonly JwtSettings _jwtSettings;
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+    private static readonly string DummyHash = BCrypt.Net.BCrypt.HashPassword("dummy-timing-safe", workFactor: 12);
 
     public AuthService(IOptions<JwtSettings> jwtSettings)
     {
@@ -29,13 +30,19 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            BCrypt.Net.BCrypt.Verify("dummy", "$2a$11$aaaaaaaaaaaaaaaaaaaaaOaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+            BCrypt.Net.BCrypt.Verify("dummy", DummyHash);
             return Task.FromResult(OperationResult<AuthResult>.Unauthorized("Invalid email or password."));
         }
 
         if (user.LockedUntil.HasValue && user.LockedUntil.Value > DateTime.UtcNow)
         {
             return Task.FromResult(OperationResult<AuthResult>.Unauthorized("Account is temporarily locked. Please try again later."));
+        }
+
+        if (user.LockedUntil.HasValue)
+        {
+            user.FailedLoginAttempts = 0;
+            user.LockedUntil = null;
         }
 
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
@@ -81,7 +88,7 @@ public class AuthService : IAuthService
         {
             Email = email,
             Name = name,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password, workFactor: 12),
             Role = role,
             IsActive = true,
             FailedLoginAttempts = 0,
@@ -124,11 +131,12 @@ public class AuthService : IAuthService
 
         using var session = Core.Database.NHibernateConspectare.OpenSession();
         using var tran = session.BeginTransaction();
-        storedToken.RevokedAt = DateTime.UtcNow;
-        session.Update(storedToken);
+        var tokenInSession = session.Get<RefreshToken>(storedToken.Id);
+        tokenInSession.RevokedAt = DateTime.UtcNow;
+        session.Update(tokenInSession);
         session.Save(newRefreshEntity);
-        storedToken.ReplacedByTokenId = newRefreshEntity.Id;
-        session.Update(storedToken);
+        tokenInSession.ReplacedByTokenId = newRefreshEntity.Id;
+        session.Update(tokenInSession);
         tran.Commit();
 
         var jwtToken = GenerateJwtToken(user);
@@ -178,7 +186,7 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static (RefreshToken Entity, string RawToken) CreateRefreshToken(long userId)
+    private (RefreshToken Entity, string RawToken) CreateRefreshToken(long userId)
     {
         var randomBytes = RandomNumberGenerator.GetBytes(32);
         var rawToken = Convert.ToHexStringLower(randomBytes);
@@ -188,7 +196,7 @@ public class AuthService : IAuthService
         {
             UserId = userId,
             TokenHash = hash,
-            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshTokenExpirationDays),
             CreatedAt = DateTime.UtcNow
         };
 

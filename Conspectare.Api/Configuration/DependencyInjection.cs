@@ -1,4 +1,6 @@
+using System.Text;
 using ISession = NHibernate.ISession;
+using Conspectare.Api.Authentication;
 using Conspectare.Infrastructure.Llm.Claude;
 using Conspectare.Infrastructure.Llm.Gemini;
 using Conspectare.Infrastructure.Settings;
@@ -7,6 +9,7 @@ using Conspectare.Infrastructure.Mappings;
 using Conspectare.Infrastructure.Migrations;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services;
+using Conspectare.Services.Configuration;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 using Conspectare.Services.Extraction;
 using Conspectare.Services.Interfaces;
@@ -15,6 +18,9 @@ using Conspectare.Services.Processors;
 using Conspectare.Services.Observability;
 using Conspectare.Workers;
 using FluentMigrator.Runner;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Metrics;
 
 namespace Conspectare.Api.Configuration;
@@ -47,6 +53,11 @@ internal static class DependencyInjection
             .AddLogging(lb => lb.AddFluentMigratorConsole());
 
         services.AddScoped<ITenantContext, TenantContext>();
+
+        services.Configure<JwtSettings>(config.GetSection("Jwt"));
+        services.AddScoped<IAuthService, AuthService>();
+
+        ConfigureAuthentication(config, services);
 
         services.Configure<AwsSettings>(config.GetSection("Aws"));
         services.AddSingleton<IStorageService, S3StorageService>();
@@ -111,5 +122,55 @@ internal static class DependencyInjection
         services.AddHostedService<WebhookWorker>();
         services.AddHostedService<VatRetryWorker>();
         services.AddHostedService<StaleClaimRecoveryWorker>();
+    }
+
+    private static void ConfigureAuthentication(IConfiguration config, IServiceCollection services)
+    {
+        var jwtSection = config.GetSection("Jwt");
+        var secret = jwtSection.GetValue<string>("Secret") ?? string.Empty;
+        var issuer = jwtSection.GetValue<string>("Issuer") ?? "conspectare-api";
+        var audience = jwtSection.GetValue<string>("Audience") ?? "conspectare-dashboard";
+
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32)
+            throw new InvalidOperationException("JWT Secret must be at least 32 characters");
+
+        services.AddAuthentication(options =>
+        {
+            options.DefaultScheme = AuthSchemeConstants.DualAuth;
+            options.DefaultChallengeScheme = AuthSchemeConstants.DualAuth;
+        })
+        .AddPolicyScheme(AuthSchemeConstants.DualAuth, AuthSchemeConstants.DualAuth, options =>
+        {
+            options.ForwardDefaultSelector = context =>
+            {
+                var authHeader = context.Request.Headers.Authorization.ToString();
+                if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.Ordinal))
+                {
+                    var token = authHeader["Bearer ".Length..].Trim();
+                    if (token.Contains('.'))
+                    {
+                        return AuthSchemeConstants.JwtBearer;
+                    }
+                }
+                return AuthSchemeConstants.ApiKey;
+            };
+        })
+        .AddJwtBearer(AuthSchemeConstants.JwtBearer, options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = issuer,
+                ValidAudience = audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
+                ClockSkew = TimeSpan.FromSeconds(30)
+            };
+        })
+        .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(AuthSchemeConstants.ApiKey, null);
+
+        services.AddAuthorization();
     }
 }
