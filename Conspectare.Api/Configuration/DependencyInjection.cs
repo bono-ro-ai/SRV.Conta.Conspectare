@@ -124,6 +124,7 @@ internal static class DependencyInjection
         services.AddHostedService<VatRetryWorker>();
         services.AddHostedService<StaleClaimRecoveryWorker>();
         services.AddHostedService<UsageAggregationWorker>();
+        services.AddHostedService<AuditCleanupWorker>();
     }
 
     private static void ConfigureAuthentication(IConfiguration config, IServiceCollection services)
