@@ -182,6 +182,7 @@ publish/
 !**/[Pp]ackages/build/
 *.nuget.props
 *.nuget.targets
+nupkgs/
 
 # Microsoft Azure Build Output
 csx/
