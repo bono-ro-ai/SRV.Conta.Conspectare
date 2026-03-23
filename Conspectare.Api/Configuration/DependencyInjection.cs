@@ -191,6 +191,9 @@ internal static class DependencyInjection
                         tenantContext.TenantId = headerTenantId;
                     if (tenantContext.TenantId == 0)
                         tenantContext.TenantId = 2; // Dashboard Admin tenant
+                    var emailClaim = context.Principal?.FindFirst("email")?.Value;
+                    if (!string.IsNullOrEmpty(emailClaim))
+                        tenantContext.UserIdentity = emailClaim;
                     return Task.CompletedTask;
                 }
             };

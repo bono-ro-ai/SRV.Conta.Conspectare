@@ -22,6 +22,7 @@ public class Document
     public virtual string FiscalCode { get; set; }
     public virtual string ClientReference { get; set; }
     public virtual string Metadata { get; set; }
+    public virtual string UploadedBy { get; set; }
     public virtual DateTime CreatedAt { get; set; }
     public virtual DateTime UpdatedAt { get; set; }
     public virtual DateTime? CompletedAt { get; set; }

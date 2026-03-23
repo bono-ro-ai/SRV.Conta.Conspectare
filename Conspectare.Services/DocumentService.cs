@@ -118,6 +118,7 @@ public class DocumentService : IDocumentService
             RawFileS3Key = s3Key,
             ClientReference = clientReference,
             Metadata = metadata,
+            UploadedBy = _tenantContext.UserIdentity,
             CreatedAt = utcNow,
             UpdatedAt = utcNow
         };

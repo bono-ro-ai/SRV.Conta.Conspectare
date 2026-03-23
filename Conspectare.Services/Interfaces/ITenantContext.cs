@@ -7,4 +7,5 @@ public interface ITenantContext
     int RateLimitPerMin { get; set; }
     int MaxFileSizeMb { get; set; }
     bool IsAdmin { get; set; }
+    string UserIdentity { get; set; }
 }

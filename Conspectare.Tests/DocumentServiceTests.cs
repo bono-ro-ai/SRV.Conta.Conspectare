@@ -61,6 +61,7 @@ public class MockTenantContext : ITenantContext
     public int RateLimitPerMin { get; set; }
     public int MaxFileSizeMb { get; set; }
     public bool IsAdmin { get; set; }
+    public string UserIdentity { get; set; }
 }
 
 /// <summary>

@@ -31,6 +31,7 @@ public class DocumentMap : ClassMap<Document>
         Map(x => x.FiscalCode).Column("fiscal_code");
         Map(x => x.ClientReference).Column("client_reference");
         Map(x => x.Metadata).Column("metadata").CustomSqlType("LONGTEXT");
+        Map(x => x.UploadedBy).Column("uploaded_by").Length(254);
         Map(x => x.CreatedAt).Column("created_at").Not.Nullable();
         Map(x => x.UpdatedAt).Column("updated_at").Not.Nullable();
         Map(x => x.CompletedAt).Column("completed_at");

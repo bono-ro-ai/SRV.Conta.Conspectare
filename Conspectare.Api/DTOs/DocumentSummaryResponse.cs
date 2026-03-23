@@ -17,6 +17,7 @@ public record DocumentSummaryResponse(
     string DocumentType,
     int RetryCount,
     string ClientReference,
+    string UploadedBy,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     DateTime? CompletedAt)
@@ -39,6 +40,7 @@ public record DocumentSummaryResponse(
             document.DocumentType,
             document.RetryCount,
             document.ClientReference,
+            document.UploadedBy,
             document.CreatedAt,
             document.UpdatedAt,
             document.CompletedAt);

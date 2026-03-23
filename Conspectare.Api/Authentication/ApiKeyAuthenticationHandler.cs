@@ -85,6 +85,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
         _tenantContext.ApiKeyPrefix = apiClient.ApiKeyPrefix;
         _tenantContext.RateLimitPerMin = apiClient.RateLimitPerMin;
         _tenantContext.IsAdmin = apiClient.IsAdmin;
+        _tenantContext.UserIdentity = $"api:{apiClient.Name}";
 
         var claims = new[]
         {
