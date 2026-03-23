@@ -8,12 +8,14 @@ namespace Conspectare.Services.Commands;
 public class UpdateCanonicalOutputCommand(
     Document document,
     string canonicalOutputJson,
+    string outputJsonS3Key,
     DateTime utcNow)
     : NHibernateConspectareCommand
 {
     protected override void OnExecute()
     {
         document.CanonicalOutput.OutputJson = canonicalOutputJson;
+        document.CanonicalOutput.OutputJsonS3Key = outputJsonS3Key;
 
         try
         {

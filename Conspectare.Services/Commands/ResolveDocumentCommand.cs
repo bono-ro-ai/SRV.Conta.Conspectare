@@ -8,6 +8,7 @@ public class ResolveDocumentCommand(
     Document document,
     string action,
     string canonicalOutputJson,
+    string outputJsonS3Key,
     DocumentEvent resolvedEvent)
     : NHibernateConspectareCommand
 {
@@ -18,6 +19,7 @@ public class ResolveDocumentCommand(
         if (action == "provide_corrected" && document.CanonicalOutput != null)
         {
             document.CanonicalOutput.OutputJson = canonicalOutputJson;
+            document.CanonicalOutput.OutputJsonS3Key = outputJsonS3Key;
             Session.Merge(document.CanonicalOutput);
         }
 

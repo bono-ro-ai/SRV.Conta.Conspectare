@@ -7,6 +7,7 @@ public class CanonicalOutput
     public virtual long TenantId { get; set; }
     public virtual string SchemaVersion { get; set; }
     public virtual string OutputJson { get; set; }
+    public virtual string OutputJsonS3Key { get; set; }
     public virtual string InvoiceNumber { get; set; }
     public virtual DateTime? IssueDate { get; set; }
     public virtual DateTime? DueDate { get; set; }

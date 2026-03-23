@@ -32,6 +32,7 @@ public class DocumentsController : ControllerBase
         _logger = logger;
     }
 
+
     private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "text/xml", "application/xml",

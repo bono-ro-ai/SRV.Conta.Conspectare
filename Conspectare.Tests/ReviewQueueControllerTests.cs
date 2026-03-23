@@ -16,6 +16,7 @@ public class ReviewQueueControllerTests
 {
     private readonly Mock<IReviewService> _reviewServiceMock = new();
     private readonly Mock<IStorageService> _storageServiceMock = new();
+    private readonly Mock<ICanonicalOutputJsonService> _canonicalOutputJsonServiceMock = new();
     private readonly MockTenantContext _tenantContext = new() { TenantId = 1, IsAdmin = true };
     private readonly ReviewQueueController _controller;
 
@@ -24,6 +25,7 @@ public class ReviewQueueControllerTests
         _controller = new ReviewQueueController(
             _reviewServiceMock.Object,
             _storageServiceMock.Object,
+            _canonicalOutputJsonServiceMock.Object,
             _tenantContext,
             NullLogger<ReviewQueueController>.Instance);
     }
@@ -34,6 +36,7 @@ public class ReviewQueueControllerTests
         return new ReviewQueueController(
             _reviewServiceMock.Object,
             _storageServiceMock.Object,
+            _canonicalOutputJsonServiceMock.Object,
             tenant,
             NullLogger<ReviewQueueController>.Instance);
     }

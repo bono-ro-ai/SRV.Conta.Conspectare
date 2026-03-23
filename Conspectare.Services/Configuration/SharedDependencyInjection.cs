@@ -39,6 +39,7 @@ public static class SharedDependencyInjection
 
         services.Configure<AwsSettings>(config.GetSection("Aws"));
         services.AddSingleton<IStorageService, S3StorageService>();
+        services.AddSingleton<ICanonicalOutputJsonService, CanonicalOutputJsonService>();
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
 
         services.AddSingleton<ConspectareMetrics>();

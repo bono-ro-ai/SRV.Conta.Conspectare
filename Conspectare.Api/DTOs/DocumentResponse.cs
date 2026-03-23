@@ -31,7 +31,7 @@ public record DocumentResponse(
     DateTime UpdatedAt,
     DateTime? CompletedAt)
 {
-    public static DocumentResponse FromEntity(Document document, DocumentStatusWorkflow workflow)
+    public static DocumentResponse FromEntity(Document document, DocumentStatusWorkflow workflow, string canonicalOutputJson = null)
     {
         var externalStatus = workflow.GetExternalStatus(document.Status);
 
@@ -55,7 +55,7 @@ public record DocumentResponse(
             .AsReadOnly()
             ?? (IReadOnlyList<ExtractionAttemptResponse>)Array.Empty<ExtractionAttemptResponse>();
 
-        var canonicalJson = document.CanonicalOutput?.OutputJson;
+        var canonicalJson = canonicalOutputJson ?? document.CanonicalOutput?.OutputJson;
 
         return new DocumentResponse(
             document.Id,

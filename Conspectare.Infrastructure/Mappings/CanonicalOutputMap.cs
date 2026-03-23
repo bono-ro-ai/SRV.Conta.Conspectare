@@ -14,7 +14,7 @@ public class CanonicalOutputMap : ClassMap<CanonicalOutput>
 
         Map(x => x.TenantId).Column("tenant_id").Not.Nullable();
         Map(x => x.SchemaVersion).Column("schema_version").Not.Nullable();
-        Map(x => x.OutputJson).Column("output_json").Not.Nullable().CustomSqlType("LONGTEXT");
+        Map(x => x.OutputJsonS3Key).Column("output_json_s3_key").Length(512);
         Map(x => x.InvoiceNumber).Column("invoice_number");
         Map(x => x.IssueDate).Column("issue_date");
         Map(x => x.DueDate).Column("due_date");

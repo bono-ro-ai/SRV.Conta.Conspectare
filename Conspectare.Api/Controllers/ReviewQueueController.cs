@@ -14,17 +14,20 @@ public class ReviewQueueController : ControllerBase
 {
     private readonly IReviewService _reviewService;
     private readonly IStorageService _storageService;
+    private readonly ICanonicalOutputJsonService _canonicalOutputJsonService;
     private readonly ITenantContext _tenantContext;
     private readonly ILogger<ReviewQueueController> _logger;
 
     public ReviewQueueController(
         IReviewService reviewService,
         IStorageService storageService,
+        ICanonicalOutputJsonService canonicalOutputJsonService,
         ITenantContext tenantContext,
         ILogger<ReviewQueueController> logger)
     {
         _reviewService = reviewService;
         _storageService = storageService;
+        _canonicalOutputJsonService = canonicalOutputJsonService;
         _tenantContext = tenantContext;
         _logger = logger;
     }
@@ -106,7 +109,11 @@ public class ReviewQueueController : ControllerBase
         var preSignedUrl = await _storageService.GeneratePresignedUrlAsync(
             document.RawFileS3Key, TimeSpan.FromMinutes(15), ct);
 
-        return Ok(ReviewQueueDetailResponse.FromEntity(document, preSignedUrl));
+        string canonicalOutputJson = null;
+        if (document.CanonicalOutput != null && !string.IsNullOrEmpty(document.CanonicalOutput.OutputJsonS3Key))
+            canonicalOutputJson = await _canonicalOutputJsonService.DownloadAsync(document.CanonicalOutput.OutputJsonS3Key, ct);
+
+        return Ok(ReviewQueueDetailResponse.FromEntity(document, preSignedUrl, canonicalOutputJson));
     }
 
     [HttpPost("{id:long}/approve")]
