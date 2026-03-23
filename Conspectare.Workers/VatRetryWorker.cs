@@ -3,6 +3,7 @@ using Conspectare.Services.Commands;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Queries;
+using Conspectare.Services.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 namespace Conspectare.Workers;
@@ -18,46 +19,42 @@ public class VatRetryWorker : DistributedBackgroundService
         : base(distributedLock, scopeFactory, logger)
     {
     }
-    protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
+    protected override Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
     {
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<VatRetryWorker>>();
-        var anafClient = scope.ServiceProvider.GetRequiredService<IAnafVatValidationClient>();
         var failedFlags = new FindFailedVatFlagsQuery(BatchSize).Execute();
         if (failedFlags.Count == 0)
-            return 0;
+            return Task.FromResult(0);
         var resolvedCount = 0;
         foreach (var flag in failedFlags)
         {
             var cui = ExtractCuiFromMessage(flag);
             if (string.IsNullOrEmpty(cui))
                 continue;
-            try
+            var (isValid, normalizedCui, error) = CuiValidator.IsValidCui(cui);
+            var result = new AnafValidationResult(
+                IsValid: isValid,
+                Cui: cui,
+                CompanyName: null,
+                IsInactive: false,
+                ValidationError: error);
+            if (result.IsValid)
             {
-                var result = await anafClient.ValidateCuiAsync(cui, ct);
-                if (result.IsValid)
-                {
-                    new ResolveVatFlagCommand(flag, result).Execute();
-                    resolvedCount++;
-                    logger.LogInformation(
-                        "VatRetryWorker: resolved flag {FlagId} — CUI {Cui} is valid ({CompanyName})",
-                        flag.Id, cui, result.CompanyName);
-                }
-                else if (result.ValidationError != null && !result.ValidationError.Contains("API"))
-                {
-                    new UpdateVatFlagMessageCommand(flag, result.ValidationError).Execute();
-                    logger.LogInformation(
-                        "VatRetryWorker: updated flag {FlagId} — CUI {Cui}: {Error}",
-                        flag.Id, cui, result.ValidationError);
-                }
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex,
-                    "VatRetryWorker: retry failed for flag {FlagId}, CUI {Cui} — will retry later",
+                new ResolveVatFlagCommand(flag, result).Execute();
+                resolvedCount++;
+                logger.LogInformation(
+                    "VatRetryWorker: resolved flag {FlagId} — CUI {Cui} is valid",
                     flag.Id, cui);
             }
+            else if (result.ValidationError != null)
+            {
+                new UpdateVatFlagMessageCommand(flag, result.ValidationError).Execute();
+                logger.LogInformation(
+                    "VatRetryWorker: updated flag {FlagId} — CUI {Cui}: {Error}",
+                    flag.Id, cui, result.ValidationError);
+            }
         }
-        return resolvedCount;
+        return Task.FromResult(resolvedCount);
     }
     private static string ExtractCuiFromMessage(ReviewFlag flag)
     {

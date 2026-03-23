@@ -4,7 +4,6 @@ using Conspectare.Infrastructure.Mappings;
 using Conspectare.Services;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services.Configuration;
-using Conspectare.Services.ExternalIntegrations.Anaf;
 using Conspectare.Services.Extraction;
 using Conspectare.Services.Infrastructure;
 using Conspectare.Services.Interfaces;
@@ -43,8 +42,6 @@ public static class SharedDependencyInjection
 
         services.AddSingleton<ConspectareMetrics>();
 
-        services.Configure<AnafVatValidationSettings>(config.GetSection("Anaf"));
-        services.AddHttpClient<IAnafVatValidationClient, AnafVatValidationClient>();
         services.AddScoped<VatValidationService>();
 
         services.AddSingleton<IPromptService, PromptService>();

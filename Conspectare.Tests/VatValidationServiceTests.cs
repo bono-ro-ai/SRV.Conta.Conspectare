@@ -2,7 +2,6 @@ using Conspectare.Domain.Entities;
 using Conspectare.Services;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using Xunit;
 
 namespace Conspectare.Tests;
@@ -42,17 +41,15 @@ public class VatValidationServiceTests
         return doc;
     }
 
-    private static TestableVatValidationService CreateService(Mock<IAnafVatValidationClient> mockClient)
+    private static TestableVatValidationService CreateService()
     {
         return new TestableVatValidationService(
-            mockClient.Object,
             NullLogger<VatValidationService>.Instance);
     }
 
     private class TestableVatValidationService(
-        IAnafVatValidationClient anafClient,
         Microsoft.Extensions.Logging.ILogger<VatValidationService> logger)
-        : VatValidationService(anafClient, logger)
+        : VatValidationService(logger)
     {
         public IList<(string role, AnafValidationResult result)> SavedResults { get; private set; }
 
@@ -66,21 +63,18 @@ public class VatValidationServiceTests
     [Fact]
     public async Task ValidateDocument_NoCuisInCanonicalOutput_SkipsValidation()
     {
-        var mockClient = new Mock<IAnafVatValidationClient>();
-        var service = CreateService(mockClient);
+        var service = CreateService();
         var doc = CreateTestDocument(null, null);
 
         await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
-        mockClient.Verify(
-            c => c.ValidateCuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Null(service.SavedResults);
     }
 
     [Fact]
     public async Task ValidateDocument_NoCanonicalOutput_SkipsValidation()
     {
-        var mockClient = new Mock<IAnafVatValidationClient>();
-        var service = CreateService(mockClient);
+        var service = CreateService();
         var doc = new Document
         {
             Id = 1,
@@ -98,94 +92,76 @@ public class VatValidationServiceTests
 
         await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
-        mockClient.Verify(
-            c => c.ValidateCuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Null(service.SavedResults);
     }
 
     [Fact]
     public async Task ValidateDocument_EmptyWhitespaceCuis_SkipsValidation()
     {
-        var mockClient = new Mock<IAnafVatValidationClient>();
-        var service = CreateService(mockClient);
+        var service = CreateService();
         var doc = CreateTestDocument("  ", "");
 
         await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
-        mockClient.Verify(
-            c => c.ValidateCuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Null(service.SavedResults);
     }
 
     [Fact]
-    public async Task ValidateDocument_SupplierCuiOnly_ValidatesOnlySupplier()
+    public async Task ValidateDocument_ValidSupplierCui_SavesValidResult()
     {
-        var mockClient = new Mock<IAnafVatValidationClient>();
-        mockClient
-            .Setup(c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AnafValidationResult(
-                IsValid: true,
-                Cui: "RO12345678",
-                CompanyName: "Test Supplier",
-                IsInactive: false,
-                ValidationError: null));
-
-        var service = CreateService(mockClient);
-        var doc = CreateTestDocument("RO12345678", null);
+        var service = CreateService();
+        var doc = CreateTestDocument("RO16393852", null);
 
         await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
-        mockClient.Verify(
-            c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()), Times.Once);
-        mockClient.VerifyNoOtherCalls();
+        Assert.NotNull(service.SavedResults);
+        Assert.Single(service.SavedResults);
+        Assert.Equal("supplier", service.SavedResults[0].role);
+        Assert.True(service.SavedResults[0].result.IsValid);
     }
 
     [Fact]
-    public async Task ValidateDocument_BothCuis_CallsAnafForBoth()
+    public async Task ValidateDocument_InvalidSupplierCui_SavesInvalidResult()
     {
-        var mockClient = new Mock<IAnafVatValidationClient>();
-        mockClient
-            .Setup(c => c.ValidateCuiAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((string cui, CancellationToken _) => new AnafValidationResult(
-                IsValid: true,
-                Cui: cui,
-                CompanyName: "Test Company",
-                IsInactive: false,
-                ValidationError: null));
-
-        var service = CreateService(mockClient);
-        var doc = CreateTestDocument("RO12345678", "RO87654321");
+        var service = CreateService();
+        var doc = CreateTestDocument("RO12345679", null);
 
         await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
-        mockClient.Verify(
-            c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()), Times.Once);
-        mockClient.Verify(
-            c => c.ValidateCuiAsync("RO87654321", It.IsAny<CancellationToken>()), Times.Once);
+        Assert.NotNull(service.SavedResults);
+        Assert.Single(service.SavedResults);
+        Assert.Equal("supplier", service.SavedResults[0].role);
+        Assert.False(service.SavedResults[0].result.IsValid);
+        Assert.Contains("invalid check digit", service.SavedResults[0].result.ValidationError);
     }
 
     [Fact]
-    public async Task ValidateDocument_AnafThrowsForSupplier_StillValidatesCustomer()
+    public async Task ValidateDocument_BothCuis_ValidatesBoth()
     {
-        var mockClient = new Mock<IAnafVatValidationClient>();
-        mockClient
-            .Setup(c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()))
-            .ThrowsAsync(new HttpRequestException("Connection refused"));
-        mockClient
-            .Setup(c => c.ValidateCuiAsync("RO87654321", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AnafValidationResult(
-                IsValid: true,
-                Cui: "RO87654321",
-                CompanyName: "Customer SRL",
-                IsInactive: false,
-                ValidationError: null));
-
-        var service = CreateService(mockClient);
-        var doc = CreateTestDocument("RO12345678", "RO87654321");
+        var service = CreateService();
+        var doc = CreateTestDocument("RO16393852", "RO16393852");
 
         await service.ValidateDocumentAsync(doc, CancellationToken.None);
 
-        mockClient.Verify(
-            c => c.ValidateCuiAsync("RO12345678", It.IsAny<CancellationToken>()), Times.Once);
-        mockClient.Verify(
-            c => c.ValidateCuiAsync("RO87654321", It.IsAny<CancellationToken>()), Times.Once);
+        Assert.NotNull(service.SavedResults);
+        Assert.Equal(2, service.SavedResults.Count);
+        Assert.Equal("supplier", service.SavedResults[0].role);
+        Assert.Equal("customer", service.SavedResults[1].role);
+        Assert.True(service.SavedResults[0].result.IsValid);
+        Assert.True(service.SavedResults[1].result.IsValid);
+    }
+
+    [Fact]
+    public async Task ValidateDocument_NonNumericCui_SavesInvalidResult()
+    {
+        var service = CreateService();
+        var doc = CreateTestDocument("ABCDEF", null);
+
+        await service.ValidateDocumentAsync(doc, CancellationToken.None);
+
+        Assert.NotNull(service.SavedResults);
+        Assert.Single(service.SavedResults);
+        Assert.False(service.SavedResults[0].result.IsValid);
+        Assert.Contains("not a valid numeric", service.SavedResults[0].result.ValidationError);
     }
 }
