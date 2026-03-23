@@ -13,6 +13,7 @@ public record DocumentSummaryResponse(
     long FileSizeBytes,
     string InputFormat,
     string Status,
+    /// <summary>Internal pipeline status exposed for frontend consumption (GO-129: kept for backward compatibility).</summary>
     string PipelineStatus,
     string DocumentType,
     int RetryCount,

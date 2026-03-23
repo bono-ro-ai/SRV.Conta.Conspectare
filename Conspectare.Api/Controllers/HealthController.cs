@@ -1,3 +1,4 @@
+using Conspectare.Api.DTOs;
 using Conspectare.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using NHibernate;
@@ -56,7 +57,7 @@ public class HealthController : ControllerBase
             ? StatusCodes.Status200OK
             : StatusCodes.Status503ServiceUnavailable;
 
-        return new ObjectResult(new { status, db = dbStatus, s3 = s3Status })
+        return new ObjectResult(new HealthResponse(status, dbStatus, s3Status))
         {
             StatusCode = statusCode
         };
