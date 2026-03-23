@@ -10,6 +10,7 @@ using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Processors;
 using Conspectare.Services.Observability;
+using Conspectare.Services.Triage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NHibernate;
@@ -56,5 +57,8 @@ public static class SharedDependencyInjection
         services.AddScoped<IReviewService, ReviewService>();
 
         services.AddHttpClient<IWebhookDispatchService, WebhookDispatchService>();
+
+        services.AddScoped<ExtractionOrchestrationService>();
+        services.AddScoped<TriageOrchestrationService>();
     }
 }

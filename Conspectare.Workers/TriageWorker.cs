@@ -1,20 +1,16 @@
 using System.Diagnostics;
-using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
-using Conspectare.Services;
 using Conspectare.Services.Commands;
 using Conspectare.Services.Interfaces;
-using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
 using Conspectare.Services.Queries;
+using Conspectare.Services.Triage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 namespace Conspectare.Workers;
 public class TriageWorker : DistributedBackgroundService
 {
     private const int BatchSize = 5;
-    private const decimal MinConfidenceThreshold = 0.7m;
-    private readonly IPipelineSignal _pipelineSignal;
     protected override string JobName => "triage_worker";
     protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
     protected override string SignalStage => PipelinePhase.Triage;
@@ -25,15 +21,12 @@ public class TriageWorker : DistributedBackgroundService
         IPipelineSignal signal)
         : base(distributedLock, scopeFactory, logger, signal)
     {
-        _pipelineSignal = signal;
     }
     protected override async Task<int> RunJobAsync(IServiceScope scope, CancellationToken ct)
     {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TriageWorker>>();
-        var processorRegistry = scope.ServiceProvider.GetRequiredService<IProcessorRegistry>();
-        var storageService = scope.ServiceProvider.GetRequiredService<IStorageService>();
-        var workflow = scope.ServiceProvider.GetRequiredService<DocumentStatusWorkflow>();
+        var orchestration = scope.ServiceProvider.GetRequiredService<TriageOrchestrationService>();
         var metrics = scope.ServiceProvider.GetRequiredService<ConspectareMetrics>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TriageWorker>>();
         var pendingDocs = new FindPendingTriageDocumentsQuery(BatchSize).Execute();
         if (pendingDocs.Count == 0)
             return 0;
@@ -49,7 +42,7 @@ public class TriageWorker : DistributedBackgroundService
             var sw = Stopwatch.StartNew();
             try
             {
-                await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, metrics, logger, ct);
+                await orchestration.ProcessDocumentAsync(doc, ct);
                 sw.Stop();
                 metrics.RecordProcessingDuration(PipelinePhase.Triage, sw.ElapsedMilliseconds);
                 processedCount++;
@@ -69,94 +62,5 @@ public class TriageWorker : DistributedBackgroundService
             }
         }
         return processedCount;
-    }
-    private async Task ProcessDocumentAsync(
-        Document doc,
-        IProcessorRegistry processorRegistry,
-        IStorageService storageService,
-        DocumentStatusWorkflow workflow,
-        ConspectareMetrics metrics,
-        ILogger logger,
-        CancellationToken ct)
-    {
-        var processor = processorRegistry.Resolve(doc.InputFormat, doc.ContentType);
-        await using var rawFileStream = await storageService.DownloadAsync(doc.RawFileS3Key, ct);
-        var triageResult = await processor.TriageAsync(doc, rawFileStream, ct);
-        var utcNow = DateTime.UtcNow;
-        doc.DocumentType = triageResult.DocumentType;
-        doc.TriageConfidence = triageResult.Confidence;
-        doc.IsAccountingRelevant = triageResult.IsAccountingRelevant;
-        doc.UpdatedAt = utcNow;
-        var nextStatus = DetermineNextStatus(triageResult);
-        if (!workflow.CanTransition(DocumentStatus.Triaging, nextStatus))
-        {
-            logger.LogError(
-                "TriageWorker: invalid transition from {From} to {To} for document {DocumentId}",
-                DocumentStatus.Triaging, nextStatus, doc.Id);
-            return;
-        }
-        doc.Status = nextStatus;
-        var attempt = new ExtractionAttempt
-        {
-            DocumentId = doc.Id,
-            TenantId = doc.TenantId,
-            AttemptNumber = 1,
-            Phase = PipelinePhase.Triage,
-            ModelId = triageResult.ModelId,
-            PromptVersion = triageResult.PromptVersion,
-            Status = ExtractionAttemptStatus.Completed,
-            InputTokens = triageResult.InputTokens,
-            OutputTokens = triageResult.OutputTokens,
-            LatencyMs = triageResult.LatencyMs,
-            Confidence = triageResult.Confidence,
-            CreatedAt = utcNow,
-            CompletedAt = utcNow
-        };
-        var statusEvent = new DocumentEvent
-        {
-            DocumentId = doc.Id,
-            TenantId = doc.TenantId,
-            EventType = DocumentEventType.StatusChange,
-            FromStatus = DocumentStatus.Triaging,
-            ToStatus = nextStatus,
-            Details = $"Triage completed: type={triageResult.DocumentType}, " +
-                      $"confidence={triageResult.Confidence:F2}, " +
-                      $"accounting_relevant={triageResult.IsAccountingRelevant}",
-            CreatedAt = utcNow
-        };
-        new SaveTriageResultCommand(doc, attempt, statusEvent).Execute();
-        if (nextStatus == DocumentStatus.Rejected)
-            metrics.RecordDocumentFailed(PipelinePhase.Triage, "rejected");
-        else if (nextStatus == DocumentStatus.ReviewRequired)
-            metrics.RecordDocumentCompleted("triage_review_required");
-        else if (nextStatus == DocumentStatus.PendingExtraction)
-            metrics.RecordDocumentCompleted(PipelinePhase.Triage);
-        if (nextStatus is DocumentStatus.Rejected or DocumentStatus.ReviewRequired)
-        {
-            try
-            {
-                var client = new LoadApiClientByIdQuery(doc.TenantId).Execute();
-                WebhookEnqueuer.EnqueueIfNeeded(doc, client, utcNow);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex,
-                    "TriageWorker: failed to enqueue webhook for document {DocumentId}", doc.Id);
-            }
-        }
-        if (nextStatus == DocumentStatus.PendingExtraction)
-            _pipelineSignal.Signal(PipelinePhase.Extraction);
-        logger.LogInformation(
-            "TriageWorker: document {DocumentId} triaged -> {NextStatus} " +
-            "(type={DocumentType}, confidence={Confidence:F2})",
-            doc.Id, nextStatus, triageResult.DocumentType, triageResult.Confidence);
-    }
-    private static string DetermineNextStatus(TriageResult result)
-    {
-        if (!result.IsAccountingRelevant)
-            return DocumentStatus.Rejected;
-        if (result.Confidence < MinConfidenceThreshold)
-            return DocumentStatus.ReviewRequired;
-        return DocumentStatus.PendingExtraction;
     }
 }
