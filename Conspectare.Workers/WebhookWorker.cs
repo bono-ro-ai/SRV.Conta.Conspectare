@@ -1,3 +1,4 @@
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Commands;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Queries;
@@ -32,7 +33,7 @@ public class WebhookWorker : DistributedBackgroundService
                 var client = new LoadApiClientByIdQuery(delivery.TenantId).Execute();
                 if (client == null)
                 {
-                    delivery.Status = "failed_permanently";
+                    delivery.Status = WebhookDeliveryStatus.FailedPermanently;
                     delivery.ErrorMessage = "ApiClient not found";
                     delivery.UpdatedAt = DateTime.UtcNow;
                     new UpdateWebhookDeliveryCommand(delivery).Execute();

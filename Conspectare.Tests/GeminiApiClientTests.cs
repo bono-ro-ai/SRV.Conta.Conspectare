@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Infrastructure.Llm.Gemini;
 using Conspectare.Services.Observability;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -248,7 +249,7 @@ public class GeminiApiClientTests
         Assert.NotNull(result.LatencyMs);
         Assert.Single(result.ReviewFlags);
         Assert.Equal("missing_field", result.ReviewFlags[0].FlagType);
-        Assert.Equal("warning", result.ReviewFlags[0].Severity);
+        Assert.Equal(ReviewFlagSeverity.Warning, result.ReviewFlags[0].Severity);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Core.Database;
 
 namespace Conspectare.Services.Commands;
@@ -50,7 +51,7 @@ public class UpdateCanonicalOutputCommand(
             TenantId = document.TenantId,
             DocumentId = document.Id,
             Document = document,
-            EventType = "canonical_output_edited",
+            EventType = DocumentEventType.CanonicalOutputEdited,
             FromStatus = document.Status,
             ToStatus = document.Status,
             Details = "Canonical output edited via review UI",

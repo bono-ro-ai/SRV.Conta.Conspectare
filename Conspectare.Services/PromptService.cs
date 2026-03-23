@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Processors;
 using Conspectare.Services.Queries;
@@ -87,8 +88,8 @@ public class PromptService : IPromptService
     {
         return phase switch
         {
-            "triage" => (PromptProvider.GetTriagePrompt(), PromptProvider.GetTriagePromptVersion()),
-            "extraction" => (PromptProvider.GetExtractionPrompt(documentType), PromptProvider.GetExtractionPromptVersion(documentType)),
+            PipelinePhase.Triage => (PromptProvider.GetTriagePrompt(), PromptProvider.GetTriagePromptVersion()),
+            PipelinePhase.Extraction => (PromptProvider.GetExtractionPrompt(documentType), PromptProvider.GetExtractionPromptVersion(documentType)),
             _ => (PromptProvider.GetTriagePrompt(), PromptProvider.GetTriagePromptVersion())
         };
     }

@@ -1,4 +1,5 @@
 using System.Diagnostics.Metrics;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Observability;
 using Xunit;
 
@@ -62,22 +63,22 @@ public class ConspectareMetricsTests
     public void RecordDocumentCompleted_RecordsWithCorrectTags()
     {
         var recorded = CaptureCounter("conspectare.documents.completed", () =>
-            _metrics.RecordDocumentCompleted("extraction"));
+            _metrics.RecordDocumentCompleted(PipelinePhase.Extraction));
 
         Assert.NotNull(recorded);
         Assert.Equal(1, recorded.Value);
-        AssertTag(recorded.Tags, "phase", "extraction");
+        AssertTag(recorded.Tags, "phase", PipelinePhase.Extraction);
     }
 
     [Fact]
     public void RecordDocumentFailed_RecordsWithCorrectTags()
     {
         var recorded = CaptureCounter("conspectare.documents.failed", () =>
-            _metrics.RecordDocumentFailed("extraction", "max_retries_exceeded"));
+            _metrics.RecordDocumentFailed(PipelinePhase.Extraction, "max_retries_exceeded"));
 
         Assert.NotNull(recorded);
         Assert.Equal(1, recorded.Value);
-        AssertTag(recorded.Tags, "phase", "extraction");
+        AssertTag(recorded.Tags, "phase", PipelinePhase.Extraction);
         AssertTag(recorded.Tags, "reason", "max_retries_exceeded");
     }
 
@@ -85,23 +86,23 @@ public class ConspectareMetricsTests
     public void RecordProcessingDuration_RecordsWithCorrectTags()
     {
         var recorded = CaptureHistogram("conspectare.processing.duration", () =>
-            _metrics.RecordProcessingDuration("triage", 150.5));
+            _metrics.RecordProcessingDuration(PipelinePhase.Triage, 150.5));
 
         Assert.NotNull(recorded);
         Assert.Equal(150.5, recorded.Value);
-        AssertTag(recorded.Tags, "phase", "triage");
+        AssertTag(recorded.Tags, "phase", PipelinePhase.Triage);
     }
 
     [Fact]
     public void RecordLlmCallDuration_RecordsWithCorrectTags()
     {
         var recorded = CaptureHistogram("conspectare.llm.call_duration", () =>
-            _metrics.RecordLlmCallDuration("claude", "triage", 2500.0));
+            _metrics.RecordLlmCallDuration("claude", PipelinePhase.Triage, 2500.0));
 
         Assert.NotNull(recorded);
         Assert.Equal(2500.0, recorded.Value);
         AssertTag(recorded.Tags, "provider", "claude");
-        AssertTag(recorded.Tags, "operation", "triage");
+        AssertTag(recorded.Tags, "operation", PipelinePhase.Triage);
     }
 
     [Fact]

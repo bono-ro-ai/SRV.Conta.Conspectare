@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Core.Database;
 
 namespace Conspectare.Services.Queries;
@@ -10,7 +11,7 @@ public class FindProcessingTimesQuery(long tenantId, DateTime from, DateTime to)
     {
         var latencies = Session.QueryOver<ExtractionAttempt>()
             .Where(a => a.TenantId == tenantId)
-            .And(a => a.Status == "completed")
+            .And(a => a.Status == ExtractionAttemptStatus.Completed)
             .And(a => a.CreatedAt >= from)
             .And(a => a.CreatedAt <= to)
             .And(a => a.LatencyMs != null)

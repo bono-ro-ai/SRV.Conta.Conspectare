@@ -72,7 +72,7 @@ public class ReviewServiceTests
                 Document = doc,
                 TenantId = tenant.Id,
                 FlagType = "low_confidence",
-                Severity = "warning",
+                Severity = ReviewFlagSeverity.Warning,
                 Message = "Confidence below threshold",
                 IsResolved = false,
                 CreatedAt = utcNow
@@ -152,7 +152,7 @@ public class ReviewServiceTests
         using var verifySession = sharedFactory.OpenSession();
         var events = verifySession.QueryOver<DocumentEvent>()
             .Where(e => e.DocumentId == doc.Id)
-            .And(e => e.EventType == "status_change")
+            .And(e => e.EventType == DocumentEventType.StatusChange)
             .List();
 
         Assert.Contains(events, e => e.ToStatus == DocumentStatus.Completed && e.Details == "Approved by admin");
@@ -213,7 +213,7 @@ public class ReviewServiceTests
         using var verifySession = sharedFactory.OpenSession();
         var events = verifySession.QueryOver<DocumentEvent>()
             .Where(e => e.DocumentId == doc.Id)
-            .And(e => e.EventType == "status_change")
+            .And(e => e.EventType == DocumentEventType.StatusChange)
             .List();
 
         Assert.Contains(events, e => e.ToStatus == DocumentStatus.Rejected && e.Details == "Duplicate document");

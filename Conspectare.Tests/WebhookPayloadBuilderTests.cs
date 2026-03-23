@@ -31,7 +31,7 @@ public class WebhookPayloadBuilderTests
         Assert.Equal("document.status_changed", root.GetProperty("event").GetString());
         Assert.Equal(42, root.GetProperty("document_id").GetInt64());
         Assert.Equal("ext-ref-001", root.GetProperty("external_ref").GetString());
-        Assert.Equal("completed", root.GetProperty("status").GetString());
+        Assert.Equal(ExternalDocumentStatus.Completed, root.GetProperty("status").GetString());
         Assert.Equal("FAC-001", root.GetProperty("result_summary").GetProperty("invoice_number").GetString());
         Assert.False(root.TryGetProperty("error_message", out _));
     }
@@ -49,7 +49,7 @@ public class WebhookPayloadBuilderTests
         var json = WebhookPayloadBuilder.Build(doc, FixedUtcNow);
         var parsed = JsonDocument.Parse(json);
         var root = parsed.RootElement;
-        Assert.Equal("failed", root.GetProperty("status").GetString());
+        Assert.Equal(ExternalDocumentStatus.Failed, root.GetProperty("status").GetString());
         Assert.Equal("LLM extraction timeout", root.GetProperty("error_message").GetString());
         Assert.False(root.TryGetProperty("result_summary", out _));
     }
@@ -66,7 +66,7 @@ public class WebhookPayloadBuilderTests
         var json = WebhookPayloadBuilder.Build(doc, FixedUtcNow);
         var parsed = JsonDocument.Parse(json);
         var root = parsed.RootElement;
-        Assert.Equal("rejected", root.GetProperty("status").GetString());
+        Assert.Equal(ExternalDocumentStatus.Rejected, root.GetProperty("status").GetString());
         Assert.Equal(44, root.GetProperty("document_id").GetInt64());
     }
 
@@ -83,7 +83,7 @@ public class WebhookPayloadBuilderTests
         var json = WebhookPayloadBuilder.Build(doc, FixedUtcNow);
         var parsed = JsonDocument.Parse(json);
         var root = parsed.RootElement;
-        Assert.Equal("review_required", root.GetProperty("status").GetString());
+        Assert.Equal(ExternalDocumentStatus.ReviewRequired, root.GetProperty("status").GetString());
         Assert.Equal("review-doc", root.GetProperty("external_ref").GetString());
     }
 
@@ -212,8 +212,8 @@ public class WebhookPayloadBuilderTests
         };
         var flags = new List<ReviewFlag>
         {
-            new() { FlagType = "confidence_low", Severity = "warning", Message = "Low confidence", IsResolved = false },
-            new() { FlagType = "vat_mismatch", Severity = "error", Message = "VAT mismatch", IsResolved = true },
+            new() { FlagType = "confidence_low", Severity = ReviewFlagSeverity.Warning, Message = "Low confidence", IsResolved = false },
+            new() { FlagType = "vat_mismatch", Severity = ReviewFlagSeverity.Error, Message = "VAT mismatch", IsResolved = true },
         };
         var json = WebhookPayloadBuilder.Build(doc, FixedUtcNow, reviewFlags: flags);
         var parsed = JsonDocument.Parse(json);
@@ -222,7 +222,7 @@ public class WebhookPayloadBuilderTests
         Assert.Equal(JsonValueKind.Array, flagsArr.ValueKind);
         Assert.Equal(2, flagsArr.GetArrayLength());
         Assert.Equal("confidence_low", flagsArr[0].GetProperty("flag_type").GetString());
-        Assert.Equal("warning", flagsArr[0].GetProperty("severity").GetString());
+        Assert.Equal(ReviewFlagSeverity.Warning, flagsArr[0].GetProperty("severity").GetString());
         Assert.Equal("Low confidence", flagsArr[0].GetProperty("message").GetString());
         Assert.False(flagsArr[0].GetProperty("is_resolved").GetBoolean());
         Assert.Equal("vat_mismatch", flagsArr[1].GetProperty("flag_type").GetString());

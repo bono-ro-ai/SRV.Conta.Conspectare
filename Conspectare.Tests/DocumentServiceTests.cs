@@ -603,7 +603,7 @@ public class DocumentServiceTests
         {
             TenantId = tenant.Id,
             FlagType = "confidence_low",
-            Severity = "warning",
+            Severity = ReviewFlagSeverity.Warning,
             Message = "Low extraction confidence",
             IsResolved = false,
             CreatedAt = utcNow
@@ -840,7 +840,7 @@ public class DocumentServiceTests
         using var verifySession = sharedFactory.OpenSession();
         var events = verifySession.QueryOver<DocumentEvent>()
             .Where(e => e.DocumentId == doc.Id)
-            .And(e => e.EventType == "canonical_output_edited")
+            .And(e => e.EventType == DocumentEventType.CanonicalOutputEdited)
             .List();
         Assert.Single(events);
         Assert.Equal(DocumentStatus.ReviewRequired, events[0].FromStatus);

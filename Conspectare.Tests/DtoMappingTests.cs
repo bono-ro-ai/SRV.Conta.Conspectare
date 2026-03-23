@@ -16,7 +16,7 @@ public class DtoMappingTests
         var entity = new DocumentEvent
         {
             Id = 1,
-            EventType = "status_change",
+            EventType = DocumentEventType.StatusChange,
             FromStatus = DocumentStatus.PendingTriage,
             ToStatus = DocumentStatus.Triaging,
             Details = "Triage started",
@@ -26,7 +26,7 @@ public class DtoMappingTests
         var result = DocumentEventResponse.FromEntity(entity);
 
         Assert.Equal(1, result.Id);
-        Assert.Equal("status_change", result.EventType);
+        Assert.Equal(DocumentEventType.StatusChange, result.EventType);
         Assert.Equal(DocumentStatus.PendingTriage, result.FromStatus);
         Assert.Equal(DocumentStatus.Triaging, result.ToStatus);
         Assert.Equal("Triage started", result.Details);
@@ -58,10 +58,10 @@ public class DtoMappingTests
         {
             Id = 10,
             AttemptNumber = 1,
-            Phase = "extraction",
+            Phase = PipelinePhase.Extraction,
             ModelId = "gpt-4",
             PromptVersion = "v2.1",
-            Status = "completed",
+            Status = ExtractionAttemptStatus.Completed,
             InputTokens = 500,
             OutputTokens = 200,
             LatencyMs = 1200,
@@ -75,10 +75,10 @@ public class DtoMappingTests
 
         Assert.Equal(10, result.Id);
         Assert.Equal(1, result.AttemptNumber);
-        Assert.Equal("extraction", result.Phase);
+        Assert.Equal(PipelinePhase.Extraction, result.Phase);
         Assert.Equal("gpt-4", result.ModelId);
         Assert.Equal("v2.1", result.PromptVersion);
-        Assert.Equal("completed", result.Status);
+        Assert.Equal(ExtractionAttemptStatus.Completed, result.Status);
         Assert.Equal(500, result.InputTokens);
         Assert.Equal(200, result.OutputTokens);
         Assert.Equal(1200, result.LatencyMs);
@@ -95,10 +95,10 @@ public class DtoMappingTests
         {
             Id = 11,
             AttemptNumber = 1,
-            Phase = "extraction",
+            Phase = PipelinePhase.Extraction,
             ModelId = "gpt-4",
             PromptVersion = "v1.0",
-            Status = "failed",
+            Status = ExtractionAttemptStatus.Failed,
             InputTokens = null,
             OutputTokens = null,
             LatencyMs = null,
@@ -125,15 +125,15 @@ public class DtoMappingTests
         document.Events = new List<DocumentEvent>
         {
             new() { Id = 1, EventType = "ingestion", FromStatus = "", ToStatus = DocumentStatus.Ingested, CreatedAt = DateTime.UtcNow.AddMinutes(-2) },
-            new() { Id = 2, EventType = "status_change", FromStatus = DocumentStatus.Ingested, ToStatus = DocumentStatus.PendingTriage, CreatedAt = DateTime.UtcNow.AddMinutes(-1) }
+            new() { Id = 2, EventType = DocumentEventType.StatusChange, FromStatus = DocumentStatus.Ingested, ToStatus = DocumentStatus.PendingTriage, CreatedAt = DateTime.UtcNow.AddMinutes(-1) }
         };
         document.ExtractionAttempts = new List<ExtractionAttempt>
         {
-            new() { Id = 10, AttemptNumber = 1, Phase = "extraction", ModelId = "gpt-4", PromptVersion = "v1", Status = "completed", CreatedAt = DateTime.UtcNow }
+            new() { Id = 10, AttemptNumber = 1, Phase = PipelinePhase.Extraction, ModelId = "gpt-4", PromptVersion = "v1", Status = ExtractionAttemptStatus.Completed, CreatedAt = DateTime.UtcNow }
         };
         document.ReviewFlags = new List<ReviewFlag>
         {
-            new() { Id = 20, FlagType = "confidence_low", Severity = "warning", Message = "Low confidence", IsResolved = false, CreatedAt = DateTime.UtcNow }
+            new() { Id = 20, FlagType = "confidence_low", Severity = ReviewFlagSeverity.Warning, Message = "Low confidence", IsResolved = false, CreatedAt = DateTime.UtcNow }
         };
 
         var result = DocumentResponse.FromEntity(document, _workflow);
@@ -217,7 +217,7 @@ public class DtoMappingTests
         var later = DateTime.UtcNow;
         document.Events = new List<DocumentEvent>
         {
-            new() { Id = 2, EventType = "status_change", FromStatus = "", ToStatus = "", CreatedAt = later },
+            new() { Id = 2, EventType = DocumentEventType.StatusChange, FromStatus = "", ToStatus = "", CreatedAt = later },
             new() { Id = 1, EventType = "ingestion", FromStatus = "", ToStatus = "", CreatedAt = earlier }
         };
 

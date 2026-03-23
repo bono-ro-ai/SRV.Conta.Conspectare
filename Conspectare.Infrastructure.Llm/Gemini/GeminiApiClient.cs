@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
@@ -51,7 +52,7 @@ public class GeminiApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct, triageModel);
         sw.Stop();
         var (args, usage) = ParseFunctionCallResponse(response, "classify_document");
-        _metrics.RecordLlmCallDuration("gemini", "triage", sw.ElapsedMilliseconds);
+        _metrics.RecordLlmCallDuration("gemini", PipelinePhase.Triage, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("gemini", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
@@ -83,7 +84,7 @@ public class GeminiApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
         var (args, usage) = ParseFunctionCallResponse(response, "extract_invoice_data");
-        _metrics.RecordLlmCallDuration("gemini", "extraction", sw.ElapsedMilliseconds);
+        _metrics.RecordLlmCallDuration("gemini", PipelinePhase.Extraction, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("gemini", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
@@ -99,7 +100,7 @@ public class GeminiApiClient : ILlmApiClient
                 {
                     reviewFlags.Add(new ReviewFlagInfo(
                         FlagType: flagObj["flag_type"]?.GetValue<string>() ?? "unknown",
-                        Severity: flagObj["severity"]?.GetValue<string>() ?? "info",
+                        Severity: flagObj["severity"]?.GetValue<string>() ?? ReviewFlagSeverity.Info,
                         Message: flagObj["message"]?.GetValue<string>() ?? ""));
                 }
             }

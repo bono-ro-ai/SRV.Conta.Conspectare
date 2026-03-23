@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services;
 using Conspectare.Services.Processors;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,7 +19,7 @@ public class PromptServiceTests
     [Fact]
     public void GetPrompt_NoDbVersions_FallsBackToTriageEmbedded()
     {
-        var (promptText, version) = _service.GetPrompt("triage", null);
+        var (promptText, version) = _service.GetPrompt(PipelinePhase.Triage, null);
 
         Assert.Equal(PromptProvider.GetTriagePrompt(), promptText);
         Assert.Equal(PromptProvider.GetTriagePromptVersion(), version);
@@ -27,7 +28,7 @@ public class PromptServiceTests
     [Fact]
     public void GetPrompt_NoDbVersions_FallsBackToExtractionInvoiceEmbedded()
     {
-        var (promptText, version) = _service.GetPrompt("extraction", "invoice");
+        var (promptText, version) = _service.GetPrompt(PipelinePhase.Extraction, "invoice");
 
         Assert.Equal(PromptProvider.GetExtractionPrompt("invoice"), promptText);
         Assert.Equal(PromptProvider.GetExtractionPromptVersion("invoice"), version);
@@ -36,7 +37,7 @@ public class PromptServiceTests
     [Fact]
     public void GetPrompt_NoDbVersions_FallsBackToExtractionReceiptEmbedded()
     {
-        var (promptText, version) = _service.GetPrompt("extraction", "receipt");
+        var (promptText, version) = _service.GetPrompt(PipelinePhase.Extraction, "receipt");
 
         Assert.Equal(PromptProvider.GetExtractionPrompt("receipt"), promptText);
         Assert.Equal(PromptProvider.GetExtractionPromptVersion("receipt"), version);
@@ -54,8 +55,8 @@ public class PromptServiceTests
     [Fact]
     public void GetPrompt_CalledTwice_ReturnsSameResultFromCache()
     {
-        var result1 = _service.GetPrompt("triage", null);
-        var result2 = _service.GetPrompt("triage", null);
+        var result1 = _service.GetPrompt(PipelinePhase.Triage, null);
+        var result2 = _service.GetPrompt(PipelinePhase.Triage, null);
 
         Assert.Equal(result1.PromptText, result2.PromptText);
         Assert.Equal(result1.Version, result2.Version);
@@ -64,8 +65,8 @@ public class PromptServiceTests
     [Fact]
     public void GetPrompt_DifferentPhases_ReturnDifferentResults()
     {
-        var triageResult = _service.GetPrompt("triage", null);
-        var extractionResult = _service.GetPrompt("extraction", "invoice");
+        var triageResult = _service.GetPrompt(PipelinePhase.Triage, null);
+        var extractionResult = _service.GetPrompt(PipelinePhase.Extraction, "invoice");
 
         Assert.NotEqual(triageResult.Version, extractionResult.Version);
     }

@@ -1,3 +1,4 @@
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Extraction;
 using Conspectare.Services.Models;
 using Xunit;
@@ -9,7 +10,7 @@ public class HighestConfidenceStrategyTests
     {
         var flags = new List<ReviewFlagInfo>();
         for (var i = 0; i < flagCount; i++)
-            flags.Add(new ReviewFlagInfo("test_flag", "warning", $"Flag {i + 1}"));
+            flags.Add(new ReviewFlagInfo("test_flag", ReviewFlagSeverity.Warning, $"Flag {i + 1}"));
         return new ExtractionResult(
             OutputJson: "{\"test\":true}",
             SchemaVersion: "1.0.0",

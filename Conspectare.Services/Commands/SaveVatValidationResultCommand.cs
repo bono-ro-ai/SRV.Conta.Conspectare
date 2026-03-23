@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 
@@ -32,7 +33,7 @@ public class SaveVatValidationResultCommand(
                     DocumentId = merged.Id,
                     TenantId = merged.TenantId,
                     FlagType = flagType,
-                    Severity = "warning",
+                    Severity = ReviewFlagSeverity.Warning,
                     Message = result.ValidationError ?? $"CUI '{result.Cui}' nu a fost validat în registrul ANAF",
                     IsResolved = false,
                     CreatedAt = utcNow
@@ -53,7 +54,7 @@ public class SaveVatValidationResultCommand(
                     DocumentId = merged.Id,
                     TenantId = merged.TenantId,
                     FlagType = flagType,
-                    Severity = "warning",
+                    Severity = ReviewFlagSeverity.Warning,
                     Message = $"Compania '{result.CompanyName ?? result.Cui}' (CUI: {result.Cui}) apare inactivă în registrul ANAF",
                     IsResolved = false,
                     CreatedAt = utcNow
@@ -72,7 +73,7 @@ public class SaveVatValidationResultCommand(
             Document = merged,
             DocumentId = merged.Id,
             TenantId = merged.TenantId,
-            EventType = "vat_validation_completed",
+            EventType = DocumentEventType.VatValidationCompleted,
             Details = details,
             CreatedAt = utcNow
         };

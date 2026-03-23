@@ -81,16 +81,16 @@ public class DocumentStatusWorkflowTests
     }
 
     [Theory]
-    [InlineData(DocumentStatus.Ingested, "processing")]
-    [InlineData(DocumentStatus.PendingTriage, "processing")]
-    [InlineData(DocumentStatus.Triaging, "processing")]
-    [InlineData(DocumentStatus.PendingExtraction, "processing")]
-    [InlineData(DocumentStatus.Extracting, "processing")]
-    [InlineData(DocumentStatus.ExtractionFailed, "processing")]
-    [InlineData(DocumentStatus.Completed, "completed")]
-    [InlineData(DocumentStatus.Failed, "failed")]
-    [InlineData(DocumentStatus.ReviewRequired, "review_required")]
-    [InlineData(DocumentStatus.Rejected, "rejected")]
+    [InlineData(DocumentStatus.Ingested, ExternalDocumentStatus.Processing)]
+    [InlineData(DocumentStatus.PendingTriage, ExternalDocumentStatus.Processing)]
+    [InlineData(DocumentStatus.Triaging, ExternalDocumentStatus.Processing)]
+    [InlineData(DocumentStatus.PendingExtraction, ExternalDocumentStatus.Processing)]
+    [InlineData(DocumentStatus.Extracting, ExternalDocumentStatus.Processing)]
+    [InlineData(DocumentStatus.ExtractionFailed, ExternalDocumentStatus.Processing)]
+    [InlineData(DocumentStatus.Completed, ExternalDocumentStatus.Completed)]
+    [InlineData(DocumentStatus.Failed, ExternalDocumentStatus.Failed)]
+    [InlineData(DocumentStatus.ReviewRequired, ExternalDocumentStatus.ReviewRequired)]
+    [InlineData(DocumentStatus.Rejected, ExternalDocumentStatus.Rejected)]
     public void GetExternalStatus_MapsCorrectly(string internalStatus, string expectedExternal)
     {
         Assert.Equal(expectedExternal, _workflow.GetExternalStatus(internalStatus));

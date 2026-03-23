@@ -1,3 +1,4 @@
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Infrastructure;
 using Xunit;
 
@@ -10,9 +11,9 @@ public class PipelineSignalTests
     {
         var signal = new PipelineSignal();
 
-        signal.Signal("triage");
+        signal.Signal(PipelinePhase.Triage);
 
-        var result = await signal.WaitAsync("triage", TimeSpan.FromSeconds(1), CancellationToken.None);
+        var result = await signal.WaitAsync(PipelinePhase.Triage, TimeSpan.FromSeconds(1), CancellationToken.None);
 
         Assert.True(result);
     }
@@ -22,7 +23,7 @@ public class PipelineSignalTests
     {
         var signal = new PipelineSignal();
 
-        var result = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
+        var result = await signal.WaitAsync(PipelinePhase.Triage, TimeSpan.FromMilliseconds(50), CancellationToken.None);
 
         Assert.False(result);
     }
@@ -33,12 +34,12 @@ public class PipelineSignalTests
         var signal = new PipelineSignal();
 
         var waitTask = Task.Run(async () =>
-            await signal.WaitAsync("extraction", TimeSpan.FromSeconds(5), CancellationToken.None));
+            await signal.WaitAsync(PipelinePhase.Extraction, TimeSpan.FromSeconds(5), CancellationToken.None));
 
         // Give the wait task a moment to start waiting
         await Task.Delay(50);
 
-        signal.Signal("extraction");
+        signal.Signal(PipelinePhase.Extraction);
 
         var result = await waitTask;
 
@@ -51,12 +52,12 @@ public class PipelineSignalTests
         var signal = new PipelineSignal();
 
         // Edge-triggered: multiple signals before any wait coalesce into one wake-up
-        signal.Signal("triage");
-        signal.Signal("triage");
-        signal.Signal("triage");
+        signal.Signal(PipelinePhase.Triage);
+        signal.Signal(PipelinePhase.Triage);
+        signal.Signal(PipelinePhase.Triage);
 
-        var r1 = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
-        var r2 = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
+        var r1 = await signal.WaitAsync(PipelinePhase.Triage, TimeSpan.FromMilliseconds(50), CancellationToken.None);
+        var r2 = await signal.WaitAsync(PipelinePhase.Triage, TimeSpan.FromMilliseconds(50), CancellationToken.None);
 
         Assert.True(r1);   // First wait consumes the coalesced signal
         Assert.False(r2);  // No more signals — edge-triggered, maxCount=1
@@ -69,7 +70,7 @@ public class PipelineSignalTests
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
         await Assert.ThrowsAsync<OperationCanceledException>(async () =>
-            await signal.WaitAsync("triage", TimeSpan.FromSeconds(30), cts.Token));
+            await signal.WaitAsync(PipelinePhase.Triage, TimeSpan.FromSeconds(30), cts.Token));
     }
 
     [Fact]
@@ -77,10 +78,10 @@ public class PipelineSignalTests
     {
         var signal = new PipelineSignal();
 
-        signal.Signal("triage");
+        signal.Signal(PipelinePhase.Triage);
 
-        var triageResult = await signal.WaitAsync("triage", TimeSpan.FromMilliseconds(50), CancellationToken.None);
-        var extractionResult = await signal.WaitAsync("extraction", TimeSpan.FromMilliseconds(50), CancellationToken.None);
+        var triageResult = await signal.WaitAsync(PipelinePhase.Triage, TimeSpan.FromMilliseconds(50), CancellationToken.None);
+        var extractionResult = await signal.WaitAsync(PipelinePhase.Extraction, TimeSpan.FromMilliseconds(50), CancellationToken.None);
 
         Assert.True(triageResult);
         Assert.False(extractionResult);

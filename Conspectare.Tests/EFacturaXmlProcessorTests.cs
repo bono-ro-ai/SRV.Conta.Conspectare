@@ -379,11 +379,11 @@ public class EFacturaXmlProcessorTests
         Assert.True(result.ReviewFlags.Count >= 3);
 
         Assert.Contains(result.ReviewFlags, f =>
-            f.FlagType == "missing_invoice_number" && f.Severity == "error");
+            f.FlagType == "missing_invoice_number" && f.Severity == ReviewFlagSeverity.Error);
         Assert.Contains(result.ReviewFlags, f =>
-            f.FlagType == "missing_issue_date" && f.Severity == "error");
+            f.FlagType == "missing_issue_date" && f.Severity == ReviewFlagSeverity.Error);
         Assert.Contains(result.ReviewFlags, f =>
-            f.FlagType == "missing_currency" && f.Severity == "error");
+            f.FlagType == "missing_currency" && f.Severity == ReviewFlagSeverity.Error);
     }
 
     [Fact]
@@ -393,7 +393,7 @@ public class EFacturaXmlProcessorTests
         var result = await _processor.ExtractAsync(CreateTestDocument(), stream, CancellationToken.None);
 
         Assert.Contains(result.ReviewFlags, f =>
-            f.FlagType == "inconsistent_totals" && f.Severity == "warning");
+            f.FlagType == "inconsistent_totals" && f.Severity == ReviewFlagSeverity.Warning);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -20,7 +21,7 @@ public class VatValidationServiceTests
             ContentType = "application/pdf",
             FileSizeBytes = 1024,
             InputFormat = "pdf",
-            Status = "completed",
+            Status = DocumentStatus.Completed,
             RawFileS3Key = "tenant-100/raw/test.pdf",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -89,7 +90,7 @@ public class VatValidationServiceTests
             ContentType = "application/pdf",
             FileSizeBytes = 1024,
             InputFormat = "pdf",
-            Status = "completed",
+            Status = DocumentStatus.Completed,
             RawFileS3Key = "tenant-100/raw/test.pdf",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,

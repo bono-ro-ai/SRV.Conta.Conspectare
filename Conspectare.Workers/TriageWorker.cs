@@ -17,7 +17,7 @@ public class TriageWorker : DistributedBackgroundService
     private readonly IPipelineSignal _pipelineSignal;
     protected override string JobName => "triage_worker";
     protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
-    protected override string SignalStage => "triage";
+    protected override string SignalStage => PipelinePhase.Triage;
     public TriageWorker(
         IDistributedLock distributedLock,
         IServiceScopeFactory scopeFactory,
@@ -51,7 +51,7 @@ public class TriageWorker : DistributedBackgroundService
             {
                 await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, metrics, logger, ct);
                 sw.Stop();
-                metrics.RecordProcessingDuration("triage", sw.ElapsedMilliseconds);
+                metrics.RecordProcessingDuration(PipelinePhase.Triage, sw.ElapsedMilliseconds);
                 processedCount++;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -62,8 +62,8 @@ public class TriageWorker : DistributedBackgroundService
             catch (Exception ex)
             {
                 sw.Stop();
-                metrics.RecordProcessingDuration("triage", sw.ElapsedMilliseconds);
-                metrics.RecordDocumentFailed("triage", "unhandled_error");
+                metrics.RecordProcessingDuration(PipelinePhase.Triage, sw.ElapsedMilliseconds);
+                metrics.RecordDocumentFailed(PipelinePhase.Triage, "unhandled_error");
                 logger.LogError(ex,
                     "TriageWorker: failed to triage document {DocumentId}", doc.Id);
             }
@@ -101,10 +101,10 @@ public class TriageWorker : DistributedBackgroundService
             DocumentId = doc.Id,
             TenantId = doc.TenantId,
             AttemptNumber = 1,
-            Phase = "triage",
+            Phase = PipelinePhase.Triage,
             ModelId = triageResult.ModelId,
             PromptVersion = triageResult.PromptVersion,
-            Status = "completed",
+            Status = ExtractionAttemptStatus.Completed,
             InputTokens = triageResult.InputTokens,
             OutputTokens = triageResult.OutputTokens,
             LatencyMs = triageResult.LatencyMs,
@@ -116,7 +116,7 @@ public class TriageWorker : DistributedBackgroundService
         {
             DocumentId = doc.Id,
             TenantId = doc.TenantId,
-            EventType = "status_change",
+            EventType = DocumentEventType.StatusChange,
             FromStatus = DocumentStatus.Triaging,
             ToStatus = nextStatus,
             Details = $"Triage completed: type={triageResult.DocumentType}, " +
@@ -126,11 +126,11 @@ public class TriageWorker : DistributedBackgroundService
         };
         new SaveTriageResultCommand(doc, attempt, statusEvent).Execute();
         if (nextStatus == DocumentStatus.Rejected)
-            metrics.RecordDocumentFailed("triage", "rejected");
+            metrics.RecordDocumentFailed(PipelinePhase.Triage, "rejected");
         else if (nextStatus == DocumentStatus.ReviewRequired)
             metrics.RecordDocumentCompleted("triage_review_required");
         else if (nextStatus == DocumentStatus.PendingExtraction)
-            metrics.RecordDocumentCompleted("triage");
+            metrics.RecordDocumentCompleted(PipelinePhase.Triage);
         if (nextStatus is DocumentStatus.Rejected or DocumentStatus.ReviewRequired)
         {
             try
@@ -145,7 +145,7 @@ public class TriageWorker : DistributedBackgroundService
             }
         }
         if (nextStatus == DocumentStatus.PendingExtraction)
-            _pipelineSignal.Signal("extraction");
+            _pipelineSignal.Signal(PipelinePhase.Extraction);
         logger.LogInformation(
             "TriageWorker: document {DocumentId} triaged -> {NextStatus} " +
             "(type={DocumentType}, confidence={Confidence:F2})",
