@@ -1,28 +1,16 @@
 using System.Text;
 using ISession = NHibernate.ISession;
 using Conspectare.Api.Authentication;
-using Conspectare.Infrastructure.Llm.Claude;
-using Conspectare.Infrastructure.Llm.Gemini;
 using Conspectare.Infrastructure.Settings;
-using Conspectare.Services.Infrastructure;
-using Conspectare.Infrastructure.Mappings;
-using Conspectare.Infrastructure.Migrations;
-using Conspectare.Services.Core.Database;
 using Conspectare.Services;
+using Conspectare.Infrastructure.Llm.Configuration;
 using Conspectare.Services.Configuration;
 using Conspectare.Services.Email;
-using Conspectare.Services.ExternalIntegrations.Anaf;
-using Conspectare.Services.Extraction;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
-using Conspectare.Services.Processors;
-using Conspectare.Services.Observability;
-using Conspectare.Workers;
-using FluentMigrator.Runner;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using OpenTelemetry.Metrics;
 
 namespace Conspectare.Api.Configuration;
 
@@ -30,28 +18,8 @@ internal static class DependencyInjection
 {
     internal static void RegisterAppServices(IConfiguration config, IServiceCollection services)
     {
-        ConfigurationValidator.Validate(config);
-
-        var connectionString = config.GetConnectionString("ConspectareDb")!;
-
-        var nhSection = config.GetSection("NHibernate");
-        var showSql = nhSection.GetValue<bool>("ShowSql");
-        var formatSql = nhSection.GetValue<bool>("FormatSql");
-
-        NHibernateConspectare.Configure<ApiClientMap>(
-            connectionString,
-            showSql,
-            formatSql);
-
-        services.AddSingleton(NHibernateConspectare.SessionFactory);
-        services.AddScoped<ISession>(sp => sp.GetRequiredService<NHibernate.ISessionFactory>().OpenSession());
-
-        services.AddFluentMigratorCore()
-            .ConfigureRunner(rb => rb
-                .AddMySql5()
-                .WithGlobalConnectionString(connectionString)
-                .ScanIn(typeof(Migration_001_Baseline).Assembly).For.Migrations())
-            .AddLogging(lb => lb.AddFluentMigratorConsole());
+        SharedDependencyInjection.RegisterSharedServices(config, services);
+        LlmDependencyInjection.RegisterLlmServices(config, services);
 
         services.AddScoped<ITenantContext, TenantContext>();
 
@@ -63,72 +31,6 @@ internal static class DependencyInjection
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
 
         ConfigureAuthentication(config, services);
-
-        services.Configure<AwsSettings>(config.GetSection("Aws"));
-        services.AddSingleton<IStorageService, S3StorageService>();
-        services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
-
-        services.AddSingleton<ConspectareMetrics>();
-        services.AddOpenTelemetry()
-            .WithMetrics(b => b
-                .AddMeter(ConspectareMetrics.MeterName)
-                .AddPrometheusExporter());
-
-        var llmProvider = config.GetValue<string>("Llm:Provider") ?? "claude";
-        switch (llmProvider.ToLowerInvariant())
-        {
-            case "gemini":
-                services.Configure<GeminiApiSettings>(config.GetSection("Gemini"));
-                services.AddHttpClient<ILlmApiClient, GeminiApiClient>();
-                break;
-            case "claude":
-            default:
-                services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
-                services.AddHttpClient<ILlmApiClient, ClaudeApiClient>();
-                break;
-        }
-
-        services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
-        services.Configure<GeminiApiSettings>(config.GetSection("Gemini"));
-        services.AddHttpClient<ClaudeApiClient>();
-        services.AddHttpClient<GeminiApiClient>();
-        services.AddSingleton<ILlmClientFactory>(sp =>
-        {
-            var clients = new Dictionary<string, ILlmApiClient>
-            {
-                ["claude"] = sp.GetRequiredService<ClaudeApiClient>(),
-                ["gemini"] = sp.GetRequiredService<GeminiApiClient>()
-            };
-            return new LlmClientFactory(clients);
-        });
-        services.Configure<MultiModelSettings>(config.GetSection("Llm:MultiModel"));
-        services.AddSingleton<IConsensusStrategy, HighestConfidenceStrategy>();
-        services.AddScoped<MultiModelExtractionService>();
-
-        services.Configure<AnafVatValidationSettings>(config.GetSection("Anaf"));
-        services.AddHttpClient<IAnafVatValidationClient, AnafVatValidationClient>();
-        services.AddScoped<VatValidationService>();
-
-        services.AddSingleton<IPromptService, PromptService>();
-        services.AddSingleton<IPipelineSignal, PipelineSignal>();
-        services.AddSingleton<DocumentStatusWorkflow>();
-        services.AddScoped<IDocumentProcessor, EFacturaXmlProcessor>();
-        services.AddScoped<IDocumentProcessor, ImageDocumentProcessor>();
-        services.AddScoped<IDocumentProcessor, PdfDocumentProcessor>();
-        services.AddScoped<IProcessorRegistry, ProcessorRegistry>();
-        services.AddSingleton<IDocumentRefAllocator, DocumentRefAllocator>();
-        services.AddScoped<IDocumentService, DocumentService>();
-        services.AddScoped<IReviewService, ReviewService>();
-
-        services.AddHttpClient<IWebhookDispatchService, WebhookDispatchService>();
-
-        services.AddHostedService<TriageWorker>();
-        services.AddHostedService<ExtractionWorker>();
-        services.AddHostedService<WebhookWorker>();
-        services.AddHostedService<VatRetryWorker>();
-        services.AddHostedService<StaleClaimRecoveryWorker>();
-        services.AddHostedService<UsageAggregationWorker>();
-        services.AddHostedService<AuditCleanupWorker>();
     }
 
     private static void ConfigureAuthentication(IConfiguration config, IServiceCollection services)

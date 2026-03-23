@@ -1,4 +1,4 @@
-using Conspectare.Api.Configuration;
+using Conspectare.Services.Configuration;
 using Microsoft.Extensions.Configuration;
 using Xunit;
 

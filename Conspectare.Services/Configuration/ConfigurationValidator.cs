@@ -1,8 +1,10 @@
-namespace Conspectare.Api.Configuration;
+using Microsoft.Extensions.Configuration;
 
-internal static class ConfigurationValidator
+namespace Conspectare.Services.Configuration;
+
+public static class ConfigurationValidator
 {
-    internal static void Validate(IConfiguration config)
+    public static void Validate(IConfiguration config)
     {
         var errors = new List<string>();
 
