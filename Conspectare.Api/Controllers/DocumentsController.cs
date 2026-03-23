@@ -40,6 +40,107 @@ public class DocumentsController : ControllerBase
         "application/octet-stream"
     };
 
+    private const int MaxBatchFiles = 20;
+
+    [HttpPost("batch")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(209_715_200)]
+    public async Task<IActionResult> BatchUpload(
+        IFormFileCollection files,
+        [FromHeader(Name = "X-Request-Id")] string externalRef,
+        [FromForm] string fiscalCode,
+        [FromForm] string clientReference,
+        [FromForm] string metadata,
+        CancellationToken ct)
+    {
+        if (files == null || files.Count == 0)
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "At least one file is required."
+            });
+
+        if (files.Count > MaxBatchFiles)
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = $"Maximum {MaxBatchFiles} files per batch. Received {files.Count}."
+            });
+
+        var maxBytes = (long)_tenant.MaxFileSizeMb * 1024 * 1024;
+        var results = new List<BatchUploadItemResult>();
+
+        for (var i = 0; i < files.Count; i++)
+        {
+            var file = files[i];
+            var fileExternalRef = externalRef != null ? $"{externalRef}:{i}" : null;
+
+            if (file == null || file.Length == 0)
+            {
+                results.Add(new BatchUploadItemResult(i, file?.FileName ?? "unknown", null, null, null, "File is empty.", StatusCodes.Status400BadRequest));
+                continue;
+            }
+
+            if (!AllowedContentTypes.Contains(file.ContentType))
+            {
+                results.Add(new BatchUploadItemResult(i, file.FileName, null, null, null, $"Content type '{file.ContentType}' is not supported.", StatusCodes.Status400BadRequest));
+                continue;
+            }
+
+            if (maxBytes > 0 && file.Length > maxBytes)
+            {
+                results.Add(new BatchUploadItemResult(i, file.FileName, null, null, null, $"File size {file.Length / (1024 * 1024.0):F1} MB exceeds the maximum allowed size of {_tenant.MaxFileSizeMb} MB.", StatusCodes.Status413PayloadTooLarge));
+                continue;
+            }
+
+            try
+            {
+                using var stream = file.OpenReadStream();
+                var result = await _documentService.IngestAsync(
+                    stream,
+                    file.FileName,
+                    file.ContentType,
+                    fileExternalRef,
+                    clientReference,
+                    metadata,
+                    fiscalCode,
+                    ct);
+
+                if (result.IsSuccess)
+                {
+                    results.Add(new BatchUploadItemResult(
+                        i,
+                        file.FileName,
+                        result.Data.Id,
+                        result.Data.DocumentRef,
+                        _workflow.GetExternalStatus(result.Data.Status),
+                        null,
+                        result.StatusCode));
+                }
+                else
+                {
+                    results.Add(new BatchUploadItemResult(i, file.FileName, null, null, null, result.Error ?? "Ingestion failed.", result.StatusCode));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Batch upload failed for file {Index} ({FileName})", i, file.FileName);
+                results.Add(new BatchUploadItemResult(i, file.FileName, null, null, null, "Internal server error.", StatusCodes.Status500InternalServerError));
+            }
+        }
+
+        var succeeded = results.Count(r => r.Error == null);
+        var failed = results.Count(r => r.Error != null);
+        var response = new BatchUploadResponse(results.AsReadOnly(), files.Count, succeeded, failed);
+        var statusCode = failed == 0 ? StatusCodes.Status202Accepted : StatusCodes.Status207MultiStatus;
+
+        return new ObjectResult(response) { StatusCode = statusCode };
+    }
+
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(52_428_800)]

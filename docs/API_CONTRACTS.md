@@ -1,10 +1,64 @@
 # API Contracts
 
-Last updated: 2026-03-22
+Last updated: 2026-03-23
 
 All endpoints require `Authorization: Bearer <api_key>` header.
 
 ## Documents
+
+### POST `/api/v1/documents/batch`
+
+Upload multiple documents in a single request. Returns per-file results with partial success support.
+
+**Request**: `multipart/form-data`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `files` | File[] | Yes | 1–20 document files |
+| `clientReference` | string | No | Client-provided reference (shared across all files) |
+| `metadata` | string | No | JSON metadata (shared across all files) |
+| `fiscalCode` | string | No | Fiscal code (CUI) of the issuer (shared across all files) |
+
+**Headers**:
+- `X-Request-Id` (optional) — Base idempotency key. Per-file refs are generated as `{requestId}:{index}`.
+
+**Response** `202 Accepted` (all files succeeded) / `207 Multi-Status` (any file failed):
+```json
+{
+  "results": [
+    {
+      "index": 0,
+      "fileName": "invoice1.pdf",
+      "id": 1,
+      "documentRef": "12345678-26-1",
+      "status": "processing",
+      "error": null,
+      "statusCode": 201
+    },
+    {
+      "index": 1,
+      "fileName": "bad.exe",
+      "id": null,
+      "documentRef": null,
+      "status": null,
+      "error": "Content type 'application/x-msdownload' is not supported.",
+      "statusCode": 400
+    }
+  ],
+  "totalFiles": 2,
+  "succeeded": 1,
+  "failed": 1
+}
+```
+
+**Error Responses**:
+- `400 Bad Request` — No files provided or more than 20 files
+
+**Limits**:
+- Maximum 20 files per batch
+- Maximum 200 MB total request size
+- Per-file size limit governed by tenant `MaxFileSizeMb` setting
+- Per-file content type validation (same rules as single upload)
 
 ### POST `/api/v1/documents`
 
