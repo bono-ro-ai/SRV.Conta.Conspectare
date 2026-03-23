@@ -391,10 +391,21 @@ public class DocumentService : IDocumentService
         if (!string.IsNullOrEmpty(document.CanonicalOutput.OutputJson))
             return;
 
-        if (string.IsNullOrEmpty(document.CanonicalOutput.OutputJsonS3Key))
+        if (!string.IsNullOrEmpty(document.CanonicalOutput.OutputJsonS3Key))
+        {
+            document.CanonicalOutput.OutputJson =
+                await _canonicalOutputJsonService.DownloadAsync(document.CanonicalOutput.OutputJsonS3Key, ct);
             return;
+        }
 
-        document.CanonicalOutput.OutputJson =
-            await _canonicalOutputJsonService.DownloadAsync(document.CanonicalOutput.OutputJsonS3Key, ct);
+        // Fallback: read legacy output_json from DB for pre-migration documents
+        using var fallbackSession = _sessionFactory.OpenSession();
+        var legacyJson = fallbackSession.CreateSQLQuery(
+                "SELECT output_json FROM pipe_canonical_outputs WHERE id = :id")
+            .SetParameter("id", document.CanonicalOutput.Id)
+            .UniqueResult<string>();
+
+        if (!string.IsNullOrEmpty(legacyJson))
+            document.CanonicalOutput.OutputJson = legacyJson;
     }
 }
