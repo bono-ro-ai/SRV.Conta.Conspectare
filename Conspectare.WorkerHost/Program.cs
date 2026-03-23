@@ -1,4 +1,5 @@
 using Conspectare.Infrastructure.Llm.Configuration;
+using Conspectare.Services.Configuration;
 using Conspectare.Workers;
 
 var builder = WebApplication.CreateSlimBuilder(args);
@@ -6,6 +7,7 @@ var builder = WebApplication.CreateSlimBuilder(args);
 builder.Logging.AddJsonConsole();
 
 SharedDependencyInjection.RegisterSharedServices(builder.Configuration, builder.Services);
+LlmDependencyInjection.RegisterLlmServices(builder.Configuration, builder.Services);
 
 builder.Services.AddHealthChecks();
 
@@ -21,5 +23,6 @@ var app = builder.Build();
 
 app.Urls.Add("http://+:5101");
 app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();

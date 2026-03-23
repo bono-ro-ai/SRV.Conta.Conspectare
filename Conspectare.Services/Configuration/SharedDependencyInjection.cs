@@ -1,6 +1,4 @@
 using ISession = NHibernate.ISession;
-using Conspectare.Infrastructure.Llm.Claude;
-using Conspectare.Infrastructure.Llm.Gemini;
 using Conspectare.Infrastructure.Settings;
 using Conspectare.Infrastructure.Mappings;
 using Conspectare.Services;
@@ -16,9 +14,8 @@ using Conspectare.Services.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NHibernate;
-using OpenTelemetry.Metrics;
 
-namespace Conspectare.Infrastructure.Llm.Configuration;
+namespace Conspectare.Services.Configuration;
 
 public static class SharedDependencyInjection
 {
@@ -45,41 +42,6 @@ public static class SharedDependencyInjection
         services.AddSingleton<IDistributedLock, MariaDbDistributedLock>();
 
         services.AddSingleton<ConspectareMetrics>();
-        services.AddOpenTelemetry()
-            .WithMetrics(b => b
-                .AddMeter(ConspectareMetrics.MeterName)
-                .AddPrometheusExporter());
-
-        var llmProvider = config.GetValue<string>("Llm:Provider") ?? "claude";
-        switch (llmProvider.ToLowerInvariant())
-        {
-            case "gemini":
-                services.Configure<GeminiApiSettings>(config.GetSection("Gemini"));
-                services.AddHttpClient<ILlmApiClient, GeminiApiClient>();
-                break;
-            case "claude":
-            default:
-                services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
-                services.AddHttpClient<ILlmApiClient, ClaudeApiClient>();
-                break;
-        }
-
-        services.Configure<ClaudeApiSettings>(config.GetSection("Claude"));
-        services.Configure<GeminiApiSettings>(config.GetSection("Gemini"));
-        services.AddHttpClient<ClaudeApiClient>();
-        services.AddHttpClient<GeminiApiClient>();
-        services.AddSingleton<ILlmClientFactory>(sp =>
-        {
-            var clients = new Dictionary<string, ILlmApiClient>
-            {
-                ["claude"] = sp.GetRequiredService<ClaudeApiClient>(),
-                ["gemini"] = sp.GetRequiredService<GeminiApiClient>()
-            };
-            return new LlmClientFactory(clients);
-        });
-        services.Configure<MultiModelSettings>(config.GetSection("Llm:MultiModel"));
-        services.AddSingleton<IConsensusStrategy, HighestConfidenceStrategy>();
-        services.AddScoped<MultiModelExtractionService>();
 
         services.Configure<AnafVatValidationSettings>(config.GetSection("Anaf"));
         services.AddHttpClient<IAnafVatValidationClient, AnafVatValidationClient>();

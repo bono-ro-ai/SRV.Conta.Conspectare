@@ -69,6 +69,10 @@ services:
       Aws__SecretAccessKey: ${AWS_SECRET_ACCESS_KEY:-test}
       Aws__Region: ${AWS_REGION:-eu-central-1}
       Aws__BucketName: ${AWS__BucketName:-docpipeline-dev}
+      Claude__ApiKey: ${CLAUDE_API_KEY:-}
+      Gemini__ApiKey: ${GEMINI_API_KEY:-}
+      Llm__Provider: ${LLM_PROVIDER:-claude}
+      Llm__MultiModel__Enabled: ${LLM_MULTIMODEL_ENABLED:-false}
     depends_on:
       db:
         condition: service_healthy

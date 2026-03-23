@@ -19,6 +19,7 @@ internal static class DependencyInjection
     internal static void RegisterAppServices(IConfiguration config, IServiceCollection services)
     {
         SharedDependencyInjection.RegisterSharedServices(config, services);
+        LlmDependencyInjection.RegisterLlmServices(config, services);
 
         services.AddScoped<ITenantContext, TenantContext>();
 
