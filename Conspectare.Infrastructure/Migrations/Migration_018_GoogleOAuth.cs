@@ -2,8 +2,8 @@ using FluentMigrator;
 
 namespace Conspectare.Infrastructure.Migrations;
 
-[Migration(14, "Add Google OAuth fields to sec_users")]
-public class Migration_014_GoogleOAuth : Migration
+[Migration(18, "Add Google OAuth fields to sec_users")]
+public class Migration_018_GoogleOAuth : Migration
 {
     public override void Up()
     {
