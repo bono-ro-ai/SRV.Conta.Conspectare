@@ -3,6 +3,7 @@ using System.Text.Json;
 using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
 using Conspectare.Services.Commands;
+using Conspectare.Services.Infrastructure;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Queries;
@@ -90,7 +91,7 @@ public class DocumentService : IDocumentService
         file.Position = 0;
 
         // Generate S3 key and upload
-        var s3Key = $"{tenantId}/raw/{Guid.NewGuid()}/{fileName}";
+        var s3Key = S3KeyBuilder.Input(tenantId, fileName);
         try
         {
             await _storageService.UploadAsync(s3Key, file, contentType, ct);

@@ -2,6 +2,7 @@ using System.Text;
 using Conspectare.Domain.Entities;
 using Conspectare.Domain.Enums;
 using Conspectare.Services.Commands;
+using Conspectare.Services.Infrastructure;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
@@ -77,7 +78,7 @@ public class ExtractionOrchestrationService
             CreatedAt = utcNow
         };
         CanonicalOutputDenormalizer.TryDenormalizeFields(canonicalOutput, result.OutputJson);
-        var artifactS3Key = $"tenants/{doc.TenantId}/documents/{doc.Id}/llm_extraction_response.json";
+        var artifactS3Key = S3KeyBuilder.Artifact(doc.TenantId, doc.Id, "llm_extraction_response.json");
         var responseBytes = Encoding.UTF8.GetBytes(result.OutputJson);
         using var responseStream = new MemoryStream(responseBytes);
         await _storageService.UploadAsync(artifactS3Key, responseStream, "application/json", ct);
@@ -205,7 +206,7 @@ public class ExtractionOrchestrationService
         var artifacts = new List<DocumentArtifact>();
         foreach (var (providerKey, result) in consensus.AllResults)
         {
-            var artifactS3Key = $"tenants/{doc.TenantId}/documents/{doc.Id}/llm_extraction_response_{providerKey}.json";
+            var artifactS3Key = S3KeyBuilder.Artifact(doc.TenantId, doc.Id, $"llm_extraction_response_{providerKey}.json");
             var responseBytes = Encoding.UTF8.GetBytes(result.OutputJson);
             using var responseStream = new MemoryStream(responseBytes);
             await _storageService.UploadAsync(artifactS3Key, responseStream, "application/json", ct);
