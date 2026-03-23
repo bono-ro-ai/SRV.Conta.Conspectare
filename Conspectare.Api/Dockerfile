@@ -5,10 +5,13 @@ COPY ["Conspectare.Services/Conspectare.Services.csproj", "Conspectare.Services/
 COPY ["Conspectare.Infrastructure/Conspectare.Infrastructure.csproj", "Conspectare.Infrastructure/"]
 COPY ["Conspectare.Domain/Conspectare.Domain.csproj", "Conspectare.Domain/"]
 COPY ["Conspectare.Infrastructure.Llm/Conspectare.Infrastructure.Llm.csproj", "Conspectare.Infrastructure.Llm/"]
-RUN dotnet restore "Conspectare.Api/Conspectare.Api.csproj"
+COPY ["Conspectare.Workers/Conspectare.Workers.csproj", "Conspectare.Workers/"]
+COPY ["Conspectare.WorkerHost/Conspectare.WorkerHost.csproj", "Conspectare.WorkerHost/"]
+RUN dotnet restore "Conspectare.Api/Conspectare.Api.csproj" && dotnet restore "Conspectare.WorkerHost/Conspectare.WorkerHost.csproj"
 ARG CACHE_BUST=1
 COPY . .
-RUN dotnet publish "Conspectare.Api/Conspectare.Api.csproj" -c Release -o /app/publish --no-restore
+RUN dotnet publish "Conspectare.Api/Conspectare.Api.csproj" -c Release -o /app/publish --no-restore && \
+    dotnet publish "Conspectare.WorkerHost/Conspectare.WorkerHost.csproj" -c Release -o /app/publish/worker --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
 ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true
