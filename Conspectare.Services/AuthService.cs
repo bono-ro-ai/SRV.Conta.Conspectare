@@ -169,15 +169,8 @@ public class AuthService : IAuthService
             UpdatedAt = now
         };
 
-        using var session = Core.Database.NHibernateConspectare.OpenSession();
-        using var tran = session.BeginTransaction();
-        session.Save(apiClient);
-        user.TenantId = apiClient.Id;
-        session.Save(user);
         var (refreshEntity, rawRefreshToken) = CreateRefreshToken(user.Id);
-        session.Save(refreshEntity);
-        session.Flush();
-        tran.Commit();
+        new SignupCommand(apiClient, user, refreshEntity).Execute();
 
         var jwtToken = GenerateJwtToken(user);
 
@@ -222,16 +215,7 @@ public class AuthService : IAuthService
         }
 
         var (newRefreshEntity, newRawToken) = CreateRefreshToken(user.Id);
-
-        using var session = Core.Database.NHibernateConspectare.OpenSession();
-        using var tran = session.BeginTransaction();
-        var tokenInSession = session.Get<RefreshToken>(storedToken.Id);
-        tokenInSession.RevokedAt = DateTime.UtcNow;
-        session.Update(tokenInSession);
-        session.Save(newRefreshEntity);
-        tokenInSession.ReplacedByTokenId = newRefreshEntity.Id;
-        session.Update(tokenInSession);
-        tran.Commit();
+        new RotateRefreshTokenCommand(storedToken.Id, newRefreshEntity).Execute();
 
         var jwtToken = GenerateJwtToken(user);
         var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes);
@@ -258,13 +242,8 @@ public class AuthService : IAuthService
     public async Task<OperationResult<string>> SendMagicLinkAsync(string email, string ipAddress)
     {
         var emailLower = email.ToLowerInvariant().Trim();
-
-        using var session = Core.Database.NHibernateConspectare.OpenSession();
-        using var transaction = session.BeginTransaction();
-
-        var user = session.QueryOver<User>()
-            .Where(u => u.Email == emailLower)
-            .SingleOrDefault();
+        var user = new LoadUserByEmailQuery(emailLower).Execute();
+        var isNewUser = false;
 
         if (user == null)
         {
@@ -280,26 +259,26 @@ public class AuthService : IAuthService
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            session.Save(user);
-            _logger.LogInformation("Auto-created user via magic link for {MaskedEmail} (role: user, id: {UserId})",
-                AuthTokenHelper.MaskEmail(emailLower), user.Id);
+            isNewUser = true;
         }
 
         var rawToken = AuthTokenHelper.GenerateRawToken();
         var tokenHash = AuthTokenHelper.HashToken(rawToken);
         var magicLinkToken = new MagicLinkToken
         {
-            UserId = user.Id,
-            User = user,
             TokenHash = tokenHash,
             Email = emailLower,
             ExpiresAt = DateTime.UtcNow.AddMinutes(MagicLinkExpiryMinutes),
             CreatedAt = DateTime.UtcNow,
             IpAddress = ipAddress
         };
-        session.Save(magicLinkToken);
-        session.Flush();
-        transaction.Commit();
+        new CreateMagicLinkCommand(user, magicLinkToken, isNewUser).Execute();
+
+        if (isNewUser)
+        {
+            _logger.LogInformation("Auto-created user via magic link for {MaskedEmail} (role: user, id: {UserId})",
+                AuthTokenHelper.MaskEmail(emailLower), user.Id);
+        }
 
         var frontendUrl = _appSettings.FrontendUrl.TrimEnd('/');
         var magicLinkUrl = $"{frontendUrl}/auth/magic-link?token={Uri.EscapeDataString(rawToken)}";
@@ -330,18 +309,8 @@ public class AuthService : IAuthService
         if (user == null)
             return Task.FromResult(OperationResult<AuthResult>.BadRequest("Link invalid sau expirat."));
 
-        magicToken.UsedAt = DateTime.UtcNow;
-        user.LastLoginAt = DateTime.UtcNow;
-        user.UpdatedAt = DateTime.UtcNow;
-
-        using var session = Core.Database.NHibernateConspectare.OpenSession();
-        using var tran = session.BeginTransaction();
-        session.Update(magicToken);
-        session.Update(user);
         var (refreshEntity, rawRefreshToken) = CreateRefreshToken(user.Id);
-        session.Save(refreshEntity);
-        session.Flush();
-        tran.Commit();
+        new RedeemMagicLinkCommand(magicToken, user, refreshEntity).Execute();
 
         var jwtToken = GenerateJwtToken(user);
         var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes);
