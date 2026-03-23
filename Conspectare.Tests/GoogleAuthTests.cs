@@ -3,6 +3,7 @@ using Conspectare.Services;
 using Conspectare.Services.Configuration;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services.Interfaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
 using Xunit;
@@ -36,8 +37,14 @@ public class GoogleAuthTests : IDisposable
         _helper = new AuthTestNHibernateHelper();
         NHibernateConspectare.ConfigureForTests(_helper);
         _mockGoogleValidator = new Mock<IGoogleTokenValidator>();
+        var emailServiceMock = new Mock<IEmailService>();
+        emailServiceMock.Setup(e => e.SendMagicLinkEmailAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
         _authService = new AuthService(
             Options.Create(TestJwtSettings),
+            emailServiceMock.Object,
+            Options.Create(new AppSettings { FrontendUrl = "https://test.com" }),
+            NullLogger<AuthService>.Instance,
             Options.Create(TestGoogleSettings),
             _mockGoogleValidator.Object);
     }

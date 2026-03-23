@@ -6,7 +6,7 @@ public record RegisterRequest(string Email, string Name, string Password);
 
 public record AuthResponse(string Token, DateTime ExpiresAt, UserInfoResponse User);
 
-public record UserInfoResponse(long Id, string Email, string Name, string Role);
+public record UserInfoResponse(long Id, string Email, string Name, string Role, string AvatarUrl);
 
 public record MessageResponse(string Message);
 
@@ -21,6 +21,8 @@ public record SignupResponse(
     string ApiKeyPrefix,
     DateTime TrialExpiresAt,
     string Token);
+
+public record GoogleLoginRequest(string Credential);
 
 public record MagicLinkSendRequest(string Email);
 

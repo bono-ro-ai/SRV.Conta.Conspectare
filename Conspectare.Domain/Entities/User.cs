@@ -12,6 +12,8 @@ public class User
     public virtual long? TenantId { get; set; }
     public virtual DateTime? LockedUntil { get; set; }
     public virtual DateTime? LastLoginAt { get; set; }
+    public virtual string GoogleId { get; set; }
+    public virtual string AvatarUrl { get; set; }
     public virtual DateTime CreatedAt { get; set; }
     public virtual DateTime UpdatedAt { get; set; }
 }

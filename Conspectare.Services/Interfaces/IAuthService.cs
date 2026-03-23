@@ -25,4 +25,5 @@ public interface IAuthService
     Task<OperationResult<User>> GetUserByIdAsync(long userId);
     Task<OperationResult<string>> SendMagicLinkAsync(string email, string ipAddress);
     Task<OperationResult<AuthResult>> VerifyMagicLinkAsync(string token);
+    Task<OperationResult<AuthResult>> GoogleLoginAsync(string credential);
 }
