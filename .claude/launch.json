@@ -1,0 +1,41 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Conspectare Infra (DB + S3)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "-f", "/Users/chrisf.-toptal/dev/SRV.Conta.Conspectare/docker-compose.yml", "up", "db", "localstack"],
+      "port": 3306
+    },
+    {
+      "name": "Conspectare API",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "/Users/chrisf.-toptal/dev/SRV.Conta.Conspectare/Conspectare.Api/Conspectare.Api.csproj"],
+      "port": 5100
+    },
+    {
+      "name": "Conspectare Worker",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "/Users/chrisf.-toptal/dev/SRV.Conta.Conspectare/Conspectare.WorkerHost/Conspectare.WorkerHost.csproj"],
+      "port": 5101
+    },
+    {
+      "name": "Conspectare Frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/tmp/web-conspectare", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "P&L API",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "/tmp/pnl-api/PnL.Api/PnL.Api.csproj"],
+      "port": 5089
+    },
+    {
+      "name": "P&L Frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/tmp/pnl-new", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}
