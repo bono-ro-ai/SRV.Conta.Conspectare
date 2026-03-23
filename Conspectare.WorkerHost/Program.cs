@@ -18,6 +18,7 @@ builder.Services.AddHostedService<VatRetryWorker>();
 builder.Services.AddHostedService<StaleClaimRecoveryWorker>();
 builder.Services.AddHostedService<UsageAggregationWorker>();
 builder.Services.AddHostedService<AuditCleanupWorker>();
+builder.Services.AddHostedService<MemoryRecyclingWorker>();
 
 var app = builder.Build();
 

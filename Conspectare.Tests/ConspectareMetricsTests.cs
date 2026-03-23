@@ -42,7 +42,10 @@ public class ConspectareMetricsTests
             "conspectare.documents.failed",
             "conspectare.processing.duration",
             "conspectare.llm.call_duration",
-            "conspectare.llm.tokens"
+            "conspectare.llm.tokens",
+            "conspectare.memory.recycling_triggered",
+            "conspectare.memory.heap_size_bytes",
+            "conspectare.memory.working_set_bytes"
         };
         foreach (var name in expected)
             Assert.Contains(name, instrumentNames);
@@ -115,6 +118,20 @@ public class ConspectareMetricsTests
         Assert.Equal(1500, recorded.Value);
         AssertTag(recorded.Tags, "provider", "gemini");
         AssertTag(recorded.Tags, "token_type", "input");
+    }
+
+    [Fact]
+    public void RecordMemoryRecyclingTriggered_RecordsWithCorrectTags()
+    {
+        long heapBefore = 150_000_000;
+        long heapAfter = 80_000_000;
+        var recorded = CaptureCounter("conspectare.memory.recycling_triggered", () =>
+            _metrics.RecordMemoryRecyclingTriggered(heapBefore, heapAfter));
+
+        Assert.NotNull(recorded);
+        Assert.Equal(1, recorded.Value);
+        AssertTag(recorded.Tags, "heap_before_bytes", heapBefore);
+        AssertTag(recorded.Tags, "heap_after_bytes", heapAfter);
     }
 
     private CapturedMeasurement<long> CaptureCounter(string instrumentName, Action action)

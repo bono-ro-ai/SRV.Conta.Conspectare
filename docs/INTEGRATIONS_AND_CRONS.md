@@ -54,6 +54,7 @@ Workers run as `IHostedService` inside the **worker container** (`Conspectare.Wo
 | `StaleClaimRecoveryWorker` | `stale_claim_recovery` | 2 min | Recovers stuck documents |
 | `UsageAggregationWorker` | `usage_aggregation` | 1 hour | Aggregates daily per-tenant usage metrics into `audit_usage_daily`. Cross-tenant, idempotent (UPSERT on tenant_id + usage_date). |
 | `AuditCleanupWorker` | `audit_cleanup` | Periodic | Cleans up old audit records |
+| `MemoryRecyclingWorker` | — | 60s check | Forces GC.Collect when idle and heap exceeds 100 MB (5 min cooldown) |
 
 ## IV. Cron Jobs
 
