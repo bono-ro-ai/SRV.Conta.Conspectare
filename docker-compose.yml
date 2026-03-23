@@ -26,6 +26,17 @@ services:
     volumes:
       - ./localstack:/etc/localstack/init/ready.d
 
+  migrate:
+    build:
+      context: .
+      dockerfile: Conspectare.Api/Dockerfile
+    command: ["dotnet", "Conspectare.Api.dll", "--migrate"]
+    environment:
+      ConnectionStrings__ConspectareDb: "Server=db;Port=3306;Database=${MARIADB_DATABASE:-conspectare};Uid=${MARIADB_USER:-conspectare};Pwd=${MARIADB_PASSWORD:-conspectare_pass};"
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build:
       context: .
@@ -42,6 +53,27 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+      dockerfile: Conspectare.WorkerHost/Dockerfile
+    ports:
+      - "5101:5101"
+    environment:
+      ConnectionStrings__ConspectareDb: "Server=db;Port=3306;Database=${MARIADB_DATABASE:-conspectare};Uid=${MARIADB_USER:-conspectare};Pwd=${MARIADB_PASSWORD:-conspectare_pass};"
+      Aws__ServiceUrl: http://localstack:4566
+      Aws__AccessKeyId: ${AWS_ACCESS_KEY_ID:-test}
+      Aws__SecretAccessKey: ${AWS_SECRET_ACCESS_KEY:-test}
+      Aws__Region: ${AWS_REGION:-eu-central-1}
+      Aws__BucketName: ${AWS__BucketName:-docpipeline-dev}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   db_data:

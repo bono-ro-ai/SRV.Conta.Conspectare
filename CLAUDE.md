@@ -26,7 +26,11 @@ Document pipeline microservice for conta-facturare.
 
 ## Workers
 
-The `Conspectare.Workers` project contains background service implementations (e.g., TriageWorker, ExtractionWorker) that run as `IHostedService` registrations inside the API host process. In Phase 1 there is no separate container or docker-compose service for workers — they share the API process. A dedicated worker container may be introduced in a later phase if scaling demands it.
+The `Conspectare.Workers` project contains background service implementations (e.g., TriageWorker, ExtractionWorker). Workers run in a **separate container** (`Conspectare.WorkerHost`) from the API. Both containers share the same database and S3 storage via `SharedDependencyInjection`.
+
+- **WorkerHost**: `Conspectare.WorkerHost/Program.cs` — registers all 7 workers, exposes `/health` on port 5101.
+- **Migrations**: Run via `dotnet Conspectare.Api.dll --migrate` (dedicated `migrate` service in docker-compose).
+- **Local**: `docker compose up` starts `db`, `localstack`, `migrate`, `api`, and `worker` services.
 
 ## Running Tests
 

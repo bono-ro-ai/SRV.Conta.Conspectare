@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Last updated: 2026-03-20
+Last updated: 2026-03-23
 
 ## Platform
 
@@ -30,9 +30,19 @@ Set these in the Railway service settings. Refer to `.env.example` for local def
 
 > **Note:** Do not set `Aws__ServiceUrl` in production -- it is only used locally to point at LocalStack.
 
+## Database Migrations
+
+Migrations are run separately from the API and worker processes using a dedicated entrypoint:
+
+```bash
+dotnet Conspectare.Api.dll --migrate
+```
+
+In `docker-compose.yml`, the `migrate` service runs this command before `api` and `worker` start. In Railway, configure a one-off deploy command or run migrations as a separate service before the main deployment.
+
 ## Health Check
 
-The API exposes `GET /health` (unauthenticated). Railway is configured to probe this endpoint with a 30-second timeout via `railway.toml`.
+The API exposes `GET /health` (unauthenticated) on port 5100. Railway is configured to probe this endpoint with a 30-second timeout via `railway.toml`.
 
 ## S3 Bucket
 
@@ -64,6 +74,23 @@ The dashboard exposes `GET /health` (unauthenticated, returns plain text `ok`). 
 ### CI/CD
 
 See `Web.Conta.Conspectare/.github/workflows/ci.yml`.
+
+## Worker Service
+
+The worker container (`Conspectare.WorkerHost`) runs all background workers in a separate process from the API.
+
+### Railway Setup
+
+1. **Add a new service from GHCR** in the same Railway project -- point it at `ghcr.io/<org>/srv.conta.conspectare-worker`.
+2. The worker exposes `/health` on port 5101 for health checks.
+
+### Environment Variables
+
+The worker requires the same environment variables as the API (database connection, AWS credentials, LLM keys). Copy the API service's environment variables to the worker service.
+
+### Health Check
+
+The worker exposes `GET /health` (unauthenticated) on port 5101. Configure Railway to probe this endpoint.
 
 ## Monitoring
 

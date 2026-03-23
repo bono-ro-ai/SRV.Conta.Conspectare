@@ -18,6 +18,5 @@
   <ItemGroup>
     <ProjectReference Include="..\Conspectare.Infrastructure.Llm\Conspectare.Infrastructure.Llm.csproj" />
     <ProjectReference Include="..\Conspectare.Services\Conspectare.Services.csproj" />
-    <ProjectReference Include="..\Conspectare.Workers\Conspectare.Workers.csproj" />
   </ItemGroup>
 </Project>
