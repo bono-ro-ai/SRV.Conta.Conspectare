@@ -19,13 +19,13 @@ public class ImageDocumentProcessorTests
     public ImageDocumentProcessorTests()
     {
         _promptServiceMock
-            .Setup(p => p.GetPrompt("triage", null))
+            .Setup(p => p.GetPrompt(PipelinePhase.Triage, null))
             .Returns((PromptProvider.GetTriagePrompt(), PromptProvider.GetTriagePromptVersion()));
         _promptServiceMock
-            .Setup(p => p.GetPrompt("extraction", "invoice"))
+            .Setup(p => p.GetPrompt(PipelinePhase.Extraction, "invoice"))
             .Returns((PromptProvider.GetExtractionPrompt("invoice"), PromptProvider.GetExtractionPromptVersion("invoice")));
         _promptServiceMock
-            .Setup(p => p.GetPrompt("extraction", "receipt"))
+            .Setup(p => p.GetPrompt(PipelinePhase.Extraction, "receipt"))
             .Returns((PromptProvider.GetExtractionPrompt("receipt"), PromptProvider.GetExtractionPromptVersion("receipt")));
         _processor = new ImageDocumentProcessor(_llmApiClientMock.Object, _promptServiceMock.Object, _loggerMock.Object);
     }

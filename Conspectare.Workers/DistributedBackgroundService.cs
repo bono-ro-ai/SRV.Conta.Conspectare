@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -113,21 +114,21 @@ public abstract class DistributedBackgroundService : BackgroundService
             }
             _logger.LogInformation("{JobName}: completed in {DurationMs}ms, processed {ItemsProcessed} items",
                 JobName, durationMs, itemsProcessed);
-            await RecordExecutionAsync("completed", durationMs, itemsProcessed, null, startedAt, ct);
+            await RecordExecutionAsync(JobExecutionStatus.Completed, durationMs, itemsProcessed, null, startedAt, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
             sw.Stop();
             var durationMs = (int)sw.ElapsedMilliseconds;
             _logger.LogInformation("{JobName}: cancelled after {DurationMs}ms", JobName, durationMs);
-            await RecordExecutionAsync("cancelled", durationMs, null, null, startedAt, CancellationToken.None);
+            await RecordExecutionAsync(JobExecutionStatus.Cancelled, durationMs, null, null, startedAt, CancellationToken.None);
         }
         catch (Exception ex)
         {
             sw.Stop();
             var durationMs = (int)sw.ElapsedMilliseconds;
             _logger.LogError(ex, "{JobName}: failed after {DurationMs}ms", JobName, durationMs);
-            await RecordExecutionAsync("failed", durationMs, null, ex.Message, startedAt, CancellationToken.None);
+            await RecordExecutionAsync(JobExecutionStatus.Failed, durationMs, null, ex.Message, startedAt, CancellationToken.None);
         }
         finally
         {
@@ -148,7 +149,7 @@ public abstract class DistributedBackgroundService : BackgroundService
                 JobName = JobName,
                 InstanceId = _instanceId,
                 StartedAt = startedAt,
-                CompletedAt = status is "completed" or "failed" or "cancelled" ? DateTime.UtcNow : null,
+                CompletedAt = status is JobExecutionStatus.Completed or JobExecutionStatus.Failed or JobExecutionStatus.Cancelled ? DateTime.UtcNow : null,
                 DurationMs = durationMs,
                 Status = status,
                 ItemsProcessed = itemsProcessed,

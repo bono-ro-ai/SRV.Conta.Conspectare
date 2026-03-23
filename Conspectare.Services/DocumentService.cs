@@ -137,7 +137,7 @@ public class DocumentService : IDocumentService
         var ingestedEvent = new DocumentEvent
         {
             TenantId = tenantId,
-            EventType = "ingested",
+            EventType = DocumentEventType.Ingested,
             FromStatus = null,
             ToStatus = DocumentStatus.Ingested,
             Details = $"File '{fileName}' ingested, format: {inputFormat}",
@@ -147,7 +147,7 @@ public class DocumentService : IDocumentService
         var triageEvent = new DocumentEvent
         {
             TenantId = tenantId,
-            EventType = "status_change",
+            EventType = DocumentEventType.StatusChange,
             FromStatus = DocumentStatus.Ingested,
             ToStatus = DocumentStatus.PendingTriage,
             Details = "Auto-transitioned to pending_triage after ingestion",
@@ -168,7 +168,7 @@ public class DocumentService : IDocumentService
 
         await transaction.CommitAsync(ct);
 
-        _pipelineSignal.Signal("triage");
+        _pipelineSignal.Signal(PipelinePhase.Triage);
 
         _logger.LogInformation("Ingested document {DocumentId} for tenant {TenantId}, file '{FileName}'",
             document.Id, tenantId, fileName);
@@ -243,7 +243,7 @@ public class DocumentService : IDocumentService
         var retryEvent = new DocumentEvent
         {
             TenantId = tenantId,
-            EventType = "status_change",
+            EventType = DocumentEventType.StatusChange,
             FromStatus = document.Status,
             ToStatus = DocumentStatus.PendingTriage,
             Details = $"Manual retry requested (attempt {document.RetryCount + 1})",
@@ -258,7 +258,7 @@ public class DocumentService : IDocumentService
 
         await transaction.CommitAsync(ct);
 
-        _pipelineSignal.Signal("triage");
+        _pipelineSignal.Signal(PipelinePhase.Triage);
 
         _logger.LogInformation("Retried document {DocumentId} for tenant {TenantId}, retry count: {RetryCount}",
             document.Id, tenantId, document.RetryCount);
@@ -301,7 +301,7 @@ public class DocumentService : IDocumentService
         var resolvedEvent = new DocumentEvent
         {
             TenantId = tenantId,
-            EventType = "resolved",
+            EventType = DocumentEventType.Resolved,
             FromStatus = DocumentStatus.ReviewRequired,
             ToStatus = targetStatus,
             Details = $"Manual resolution: {action}",

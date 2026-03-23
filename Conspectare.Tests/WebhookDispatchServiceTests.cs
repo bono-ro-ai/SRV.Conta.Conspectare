@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -19,7 +20,7 @@ public class WebhookDispatchServiceTests
         TenantId = 1,
         WebhookUrl = webhookUrl,
         PayloadJson = "{\"event\":\"document.status_changed\",\"document_id\":100}",
-        Status = "pending",
+        Status = WebhookDeliveryStatus.Pending,
         AttemptCount = 0,
         MaxAttempts = maxAttempts,
         CreatedAt = DateTime.UtcNow,
@@ -42,7 +43,7 @@ public class WebhookDispatchServiceTests
 
         await service.DispatchAsync(delivery, null, CancellationToken.None);
 
-        Assert.Equal("delivered", delivery.Status);
+        Assert.Equal(WebhookDeliveryStatus.Delivered, delivery.Status);
         Assert.NotNull(delivery.DeliveredAt);
         Assert.Equal(200, delivery.HttpStatusCode);
         Assert.Equal(1, delivery.AttemptCount);
@@ -57,7 +58,7 @@ public class WebhookDispatchServiceTests
 
         await service.DispatchAsync(delivery, null, CancellationToken.None);
 
-        Assert.Equal("pending", delivery.Status);
+        Assert.Equal(WebhookDeliveryStatus.Pending, delivery.Status);
         Assert.Equal(1, delivery.AttemptCount);
         Assert.NotNull(delivery.NextAttemptAt);
         Assert.Equal(500, delivery.HttpStatusCode);
@@ -72,7 +73,7 @@ public class WebhookDispatchServiceTests
 
         await service.DispatchAsync(delivery, null, CancellationToken.None);
 
-        Assert.Equal("failed_permanently", delivery.Status);
+        Assert.Equal(WebhookDeliveryStatus.FailedPermanently, delivery.Status);
         Assert.Equal(400, delivery.HttpStatusCode);
         Assert.Contains("Client error", delivery.ErrorMessage);
     }
@@ -87,7 +88,7 @@ public class WebhookDispatchServiceTests
 
         await service.DispatchAsync(delivery, null, CancellationToken.None);
 
-        Assert.Equal("pending", delivery.Status);
+        Assert.Equal(WebhookDeliveryStatus.Pending, delivery.Status);
         Assert.Equal(1, delivery.AttemptCount);
         Assert.NotNull(delivery.NextAttemptAt);
         Assert.Equal(429, delivery.HttpStatusCode);
@@ -103,7 +104,7 @@ public class WebhookDispatchServiceTests
 
         await service.DispatchAsync(delivery, null, CancellationToken.None);
 
-        Assert.Equal("failed_permanently", delivery.Status);
+        Assert.Equal(WebhookDeliveryStatus.FailedPermanently, delivery.Status);
         Assert.Equal(3, delivery.AttemptCount);
         Assert.Equal(429, delivery.HttpStatusCode);
     }
@@ -118,7 +119,7 @@ public class WebhookDispatchServiceTests
 
         await service.DispatchAsync(delivery, null, CancellationToken.None);
 
-        Assert.Equal("failed_permanently", delivery.Status);
+        Assert.Equal(WebhookDeliveryStatus.FailedPermanently, delivery.Status);
         Assert.Equal(3, delivery.AttemptCount);
     }
 
@@ -131,7 +132,7 @@ public class WebhookDispatchServiceTests
 
         await service.DispatchAsync(delivery, null, CancellationToken.None);
 
-        Assert.Equal("pending", delivery.Status);
+        Assert.Equal(WebhookDeliveryStatus.Pending, delivery.Status);
         Assert.Equal(1, delivery.AttemptCount);
         Assert.Equal(0, delivery.HttpStatusCode);
         Assert.Contains("Connection refused", delivery.ErrorMessage);

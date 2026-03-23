@@ -103,7 +103,7 @@ public class EFacturaXmlProcessor : IDocumentProcessor
         {
             reviewFlags.Add(new ReviewFlagInfo(
                 "inconsistent_totals",
-                "warning",
+                ReviewFlagSeverity.Warning,
                 $"Sum of line totals ({lineTotalSum:F2}) does not match declared subtotal ({totals.Subtotal:F2})"));
         }
 
@@ -151,7 +151,7 @@ public class EFacturaXmlProcessor : IDocumentProcessor
         {
             flags.Add(new ReviewFlagInfo(
                 $"missing_{fieldName}",
-                "error",
+                ReviewFlagSeverity.Error,
                 message));
         }
     }

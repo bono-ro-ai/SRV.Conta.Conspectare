@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services.ExternalIntegrations.Anaf;
 
@@ -12,6 +13,6 @@ public class ResolveVatFlagCommand(ReviewFlag flag, AnafValidationResult result)
         merged.IsResolved = true;
         merged.ResolvedAt = DateTime.UtcNow;
         merged.Message = $"Validat: {result.CompanyName ?? result.Cui} — CUI activ în registrul ANAF";
-        merged.Severity = "info";
+        merged.Severity = ReviewFlagSeverity.Info;
     }
 }

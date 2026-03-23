@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Core.Database;
 using Conspectare.Services.Queries;
 using Conspectare.Tests.Helpers;
@@ -52,7 +53,7 @@ public class AggregateUsageForTenantQueryTests : IDisposable
             var doc1 = new Document
             {
                 TenantId = tenant.Id, Tenant = tenant, ExternalRef = "r1", FileName = "a.pdf",
-                ContentType = "application/pdf", FileSizeBytes = 1000, Status = "completed",
+                ContentType = "application/pdf", FileSizeBytes = 1000, Status = DocumentStatus.Completed,
                 CreatedAt = targetDate.AddHours(2), UpdatedAt = targetDate.AddHours(2),
                 CompletedAt = targetDate.AddHours(3), ContentHash = "h1", InputFormat = "pdf",
                 RawFileS3Key = "k1", DocumentRef = "REF-1", RetryCount = 0
@@ -60,7 +61,7 @@ public class AggregateUsageForTenantQueryTests : IDisposable
             var doc2 = new Document
             {
                 TenantId = tenant.Id, Tenant = tenant, ExternalRef = "r2", FileName = "b.pdf",
-                ContentType = "application/pdf", FileSizeBytes = 2000, Status = "pending",
+                ContentType = "application/pdf", FileSizeBytes = 2000, Status = DocumentStatus.PendingTriage,
                 CreatedAt = targetDate.AddHours(5), UpdatedAt = targetDate.AddHours(5),
                 ContentHash = "h2", InputFormat = "pdf", RawFileS3Key = "k2",
                 DocumentRef = "REF-2", RetryCount = 0
@@ -71,13 +72,13 @@ public class AggregateUsageForTenantQueryTests : IDisposable
             session.Save(new ExtractionAttempt
             {
                 DocumentId = doc1.Id, Document = doc1, TenantId = tenant.Id, AttemptNumber = 1,
-                Phase = "extraction", ModelId = "claude", PromptVersion = "v1", Status = "completed",
+                Phase = PipelinePhase.Extraction, ModelId = "claude", PromptVersion = "v1", Status = ExtractionAttemptStatus.Completed,
                 InputTokens = 500, OutputTokens = 200, CreatedAt = targetDate.AddHours(2)
             });
             session.Save(new ExtractionAttempt
             {
                 DocumentId = doc1.Id, Document = doc1, TenantId = tenant.Id, AttemptNumber = 2,
-                Phase = "extraction", ModelId = "claude", PromptVersion = "v1", Status = "completed",
+                Phase = PipelinePhase.Extraction, ModelId = "claude", PromptVersion = "v1", Status = ExtractionAttemptStatus.Completed,
                 InputTokens = 300, OutputTokens = 150, CreatedAt = targetDate.AddHours(3)
             });
 
@@ -128,7 +129,7 @@ public class AggregateUsageForTenantQueryTests : IDisposable
         var doc = new Document
         {
             TenantId = tenant.Id, Tenant = tenant, ExternalRef = "r3", FileName = "c.pdf",
-            ContentType = "application/pdf", FileSizeBytes = 500, Status = "failed",
+            ContentType = "application/pdf", FileSizeBytes = 500, Status = DocumentStatus.Failed,
             CreatedAt = targetDate.AddHours(1), UpdatedAt = targetDate.AddHours(1),
             ContentHash = "h3", InputFormat = "pdf", RawFileS3Key = "k3",
             DocumentRef = "REF-3", RetryCount = 0
@@ -138,7 +139,7 @@ public class AggregateUsageForTenantQueryTests : IDisposable
         session.Save(new ExtractionAttempt
         {
             DocumentId = doc.Id, Document = doc, TenantId = tenant.Id, AttemptNumber = 1,
-            Phase = "extraction", ModelId = "claude", PromptVersion = "v1", Status = "failed",
+            Phase = PipelinePhase.Extraction, ModelId = "claude", PromptVersion = "v1", Status = ExtractionAttemptStatus.Failed,
             InputTokens = null, OutputTokens = null, CreatedAt = targetDate.AddHours(1)
         });
 
@@ -172,7 +173,7 @@ public class AggregateUsageForTenantQueryTests : IDisposable
         session.Save(new Document
         {
             TenantId = tenant.Id, Tenant = tenant, ExternalRef = "r4", FileName = "d.pdf",
-            ContentType = "application/pdf", FileSizeBytes = 500, Status = "completed",
+            ContentType = "application/pdf", FileSizeBytes = 500, Status = DocumentStatus.Completed,
             CreatedAt = targetDate.AddDays(-1).AddHours(23), UpdatedAt = targetDate.AddDays(-1),
             ContentHash = "h4", InputFormat = "pdf", RawFileS3Key = "k4",
             DocumentRef = "REF-4", RetryCount = 0

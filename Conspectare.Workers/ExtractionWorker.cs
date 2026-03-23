@@ -18,7 +18,7 @@ public class ExtractionWorker : DistributedBackgroundService
     private const int BatchSize = 5;
     protected override string JobName => "extraction_worker";
     protected override TimeSpan Interval => TimeSpan.FromSeconds(3);
-    protected override string SignalStage => "extraction";
+    protected override string SignalStage => PipelinePhase.Extraction;
     private readonly MultiModelSettings _multiModelSettings;
     public ExtractionWorker(
         IDistributedLock distributedLock,
@@ -61,7 +61,7 @@ public class ExtractionWorker : DistributedBackgroundService
                     await ProcessDocumentAsync(doc, processorRegistry, storageService, workflow, vatValidationService, metrics, logger, ct);
                 }
                 sw.Stop();
-                metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
+                metrics.RecordProcessingDuration(PipelinePhase.Extraction, sw.ElapsedMilliseconds);
                 processedCount++;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -72,7 +72,7 @@ public class ExtractionWorker : DistributedBackgroundService
             catch (Exception ex)
             {
                 sw.Stop();
-                metrics.RecordProcessingDuration("extraction", sw.ElapsedMilliseconds);
+                metrics.RecordProcessingDuration(PipelinePhase.Extraction, sw.ElapsedMilliseconds);
                 HandleExtractionError(doc, workflow, metrics, ex, DateTime.UtcNow, logger);
             }
         }
@@ -102,7 +102,7 @@ public class ExtractionWorker : DistributedBackgroundService
             return;
         }
         var hasReviewFlags = result.ReviewFlags is { Count: > 0 };
-        var hasErrorFlags = result.ReviewFlags?.Any(f => f.Severity == "error") ?? false;
+        var hasErrorFlags = result.ReviewFlags?.Any(f => f.Severity == ReviewFlagSeverity.Error) ?? false;
         var nextStatus = hasErrorFlags
             ? DocumentStatus.ReviewRequired
             : DocumentStatus.Completed;
@@ -143,10 +143,10 @@ public class ExtractionWorker : DistributedBackgroundService
         {
             TenantId = doc.TenantId,
             AttemptNumber = doc.RetryCount + 1,
-            Phase = "extraction",
+            Phase = PipelinePhase.Extraction,
             ModelId = result.ModelId,
             PromptVersion = result.PromptVersion,
-            Status = "completed",
+            Status = ExtractionAttemptStatus.Completed,
             InputTokens = result.InputTokens,
             OutputTokens = result.OutputTokens,
             LatencyMs = result.LatencyMs,
@@ -159,7 +159,7 @@ public class ExtractionWorker : DistributedBackgroundService
         var statusEvent = new DocumentEvent
         {
             TenantId = doc.TenantId,
-            EventType = "status_change",
+            EventType = DocumentEventType.StatusChange,
             FromStatus = DocumentStatus.Extracting,
             ToStatus = nextStatus,
             Details = statusDetails,
@@ -180,7 +180,7 @@ public class ExtractionWorker : DistributedBackgroundService
         }
         new SaveExtractionResultCommand(doc, canonicalOutput, attempt, statusEvent, artifact, reviewFlags).Execute();
         if (nextStatus == DocumentStatus.Completed)
-            metrics.RecordDocumentCompleted("extraction");
+            metrics.RecordDocumentCompleted(PipelinePhase.Extraction);
         else if (nextStatus == DocumentStatus.ReviewRequired)
             metrics.RecordDocumentCompleted("extraction_review_required");
         EnqueueWebhookIfNeeded(doc, logger, canonicalOutput, reviewFlags);
@@ -232,7 +232,7 @@ public class ExtractionWorker : DistributedBackgroundService
         }
         var winningResult = consensus.WinningResult;
         var hasReviewFlags = winningResult.ReviewFlags is { Count: > 0 };
-        var hasErrorFlags = winningResult.ReviewFlags?.Any(f => f.Severity == "error") ?? false;
+        var hasErrorFlags = winningResult.ReviewFlags?.Any(f => f.Severity == ReviewFlagSeverity.Error) ?? false;
         var nextStatus = hasErrorFlags
             ? DocumentStatus.ReviewRequired
             : DocumentStatus.Completed;
@@ -279,11 +279,11 @@ public class ExtractionWorker : DistributedBackgroundService
             {
                 TenantId = doc.TenantId,
                 AttemptNumber = doc.RetryCount + 1,
-                Phase = "extraction",
+                Phase = PipelinePhase.Extraction,
                 ModelId = result.ModelId,
                 PromptVersion = result.PromptVersion,
                 ProviderKey = providerKey,
-                Status = providerKey == consensus.WinningProviderKey ? "completed" : "completed_non_winner",
+                Status = providerKey == consensus.WinningProviderKey ? ExtractionAttemptStatus.Completed : ExtractionAttemptStatus.CompletedNonWinner,
                 InputTokens = result.InputTokens,
                 OutputTokens = result.OutputTokens,
                 LatencyMs = result.LatencyMs,
@@ -297,7 +297,7 @@ public class ExtractionWorker : DistributedBackgroundService
         var statusEvent = new DocumentEvent
         {
             TenantId = doc.TenantId,
-            EventType = "status_change",
+            EventType = DocumentEventType.StatusChange,
             FromStatus = DocumentStatus.Extracting,
             ToStatus = nextStatus,
             Details = statusDetails,
@@ -318,7 +318,7 @@ public class ExtractionWorker : DistributedBackgroundService
         }
         new SaveMultiModelExtractionResultCommand(doc, canonicalOutput, attempts, statusEvent, artifacts, reviewFlags).Execute();
         if (nextStatus == DocumentStatus.Completed)
-            metrics.RecordDocumentCompleted("extraction");
+            metrics.RecordDocumentCompleted(PipelinePhase.Extraction);
         else if (nextStatus == DocumentStatus.ReviewRequired)
             metrics.RecordDocumentCompleted("extraction_review_required");
         EnqueueWebhookIfNeeded(doc, logger, canonicalOutput, reviewFlags);
@@ -356,7 +356,7 @@ public class ExtractionWorker : DistributedBackgroundService
             ? DocumentStatus.Failed
             : DocumentStatus.ExtractionFailed;
         if (nextStatus == DocumentStatus.Failed)
-            metrics.RecordDocumentFailed("extraction", "max_retries_exceeded");
+            metrics.RecordDocumentFailed(PipelinePhase.Extraction, "max_retries_exceeded");
         if (!workflow.CanTransition(DocumentStatus.Extracting, nextStatus))
         {
             logger.LogError(
@@ -370,10 +370,10 @@ public class ExtractionWorker : DistributedBackgroundService
             DocumentId = doc.Id,
             TenantId = doc.TenantId,
             AttemptNumber = doc.RetryCount + 1,
-            Phase = "extraction",
+            Phase = PipelinePhase.Extraction,
             ModelId = "unknown",
             PromptVersion = "unknown",
-            Status = "failed",
+            Status = ExtractionAttemptStatus.Failed,
             ErrorMessage = doc.ErrorMessage,
             CreatedAt = utcNow,
             CompletedAt = utcNow
@@ -382,7 +382,7 @@ public class ExtractionWorker : DistributedBackgroundService
         {
             DocumentId = doc.Id,
             TenantId = doc.TenantId,
-            EventType = "status_change",
+            EventType = DocumentEventType.StatusChange,
             FromStatus = DocumentStatus.Extracting,
             ToStatus = nextStatus,
             Details = $"Extraction failed (attempt {doc.RetryCount}/{doc.MaxRetries}): {doc.ErrorMessage}",

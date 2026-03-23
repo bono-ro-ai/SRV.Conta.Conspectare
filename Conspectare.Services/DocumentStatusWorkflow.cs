@@ -17,16 +17,16 @@ public class DocumentStatusWorkflow
 
     private static readonly Dictionary<string, string> ExternalStatusMap = new()
     {
-        [DocumentStatus.Ingested] = "processing",
-        [DocumentStatus.PendingTriage] = "processing",
-        [DocumentStatus.Triaging] = "processing",
-        [DocumentStatus.PendingExtraction] = "processing",
-        [DocumentStatus.Extracting] = "processing",
-        [DocumentStatus.ExtractionFailed] = "processing",
-        [DocumentStatus.Completed] = "completed",
-        [DocumentStatus.Failed] = "failed",
-        [DocumentStatus.ReviewRequired] = "review_required",
-        [DocumentStatus.Rejected] = "rejected",
+        [DocumentStatus.Ingested] = ExternalDocumentStatus.Processing,
+        [DocumentStatus.PendingTriage] = ExternalDocumentStatus.Processing,
+        [DocumentStatus.Triaging] = ExternalDocumentStatus.Processing,
+        [DocumentStatus.PendingExtraction] = ExternalDocumentStatus.Processing,
+        [DocumentStatus.Extracting] = ExternalDocumentStatus.Processing,
+        [DocumentStatus.ExtractionFailed] = ExternalDocumentStatus.Processing,
+        [DocumentStatus.Completed] = ExternalDocumentStatus.Completed,
+        [DocumentStatus.Failed] = ExternalDocumentStatus.Failed,
+        [DocumentStatus.ReviewRequired] = ExternalDocumentStatus.ReviewRequired,
+        [DocumentStatus.Rejected] = ExternalDocumentStatus.Rejected,
     };
 
     private static readonly HashSet<string> TerminalStates = new()

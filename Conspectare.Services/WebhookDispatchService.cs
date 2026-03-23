@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -47,7 +48,7 @@ public class WebhookDispatchService : IWebhookDispatchService
 
             if (response.IsSuccessStatusCode)
             {
-                delivery.Status = "delivered";
+                delivery.Status = WebhookDeliveryStatus.Delivered;
                 delivery.DeliveredAt = utcNow;
                 _logger.LogInformation(
                     "Webhook delivered for document {DocumentId} to {Url} (HTTP {StatusCode})",
@@ -63,7 +64,7 @@ public class WebhookDispatchService : IWebhookDispatchService
             }
             else
             {
-                delivery.Status = "failed_permanently";
+                delivery.Status = WebhookDeliveryStatus.FailedPermanently;
                 delivery.ErrorMessage = $"Client error: HTTP {delivery.HttpStatusCode}";
                 _logger.LogWarning(
                     "Webhook failed permanently for document {DocumentId} (HTTP {StatusCode})",
@@ -88,7 +89,7 @@ public class WebhookDispatchService : IWebhookDispatchService
     {
         if (delivery.AttemptCount >= delivery.MaxAttempts)
         {
-            delivery.Status = "failed_permanently";
+            delivery.Status = WebhookDeliveryStatus.FailedPermanently;
             delivery.ErrorMessage ??= $"Max attempts ({delivery.MaxAttempts}) exceeded";
             _logger.LogWarning(
                 "Webhook failed permanently for document {DocumentId} after {Attempts} attempts",

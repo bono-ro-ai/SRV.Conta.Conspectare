@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
@@ -53,7 +54,7 @@ public class ClaudeApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
         var (toolInput, usage) = ParseToolUseResponse(response, "classify_document");
-        _metrics.RecordLlmCallDuration("claude", "triage", sw.ElapsedMilliseconds);
+        _metrics.RecordLlmCallDuration("claude", PipelinePhase.Triage, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
@@ -86,7 +87,7 @@ public class ClaudeApiClient : ILlmApiClient
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
         var (toolInput, usage) = ParseToolUseResponse(response, "extract_invoice_data");
-        _metrics.RecordLlmCallDuration("claude", "extraction", sw.ElapsedMilliseconds);
+        _metrics.RecordLlmCallDuration("claude", PipelinePhase.Extraction, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
@@ -102,7 +103,7 @@ public class ClaudeApiClient : ILlmApiClient
                 {
                     reviewFlags.Add(new ReviewFlagInfo(
                         FlagType: flagObj["flag_type"]?.GetValue<string>() ?? "unknown",
-                        Severity: flagObj["severity"]?.GetValue<string>() ?? "info",
+                        Severity: flagObj["severity"]?.GetValue<string>() ?? ReviewFlagSeverity.Info,
                         Message: flagObj["message"]?.GetValue<string>() ?? ""));
                 }
             }

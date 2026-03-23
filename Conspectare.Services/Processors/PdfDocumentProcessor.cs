@@ -25,7 +25,7 @@ public class PdfDocumentProcessor : IDocumentProcessor
     {
         _logger.LogInformation("Triaging PDF document {DocumentId} via Claude vision", doc.Id);
 
-        var (promptText, promptVersion) = _promptService.GetPrompt("triage", null);
+        var (promptText, promptVersion) = _promptService.GetPrompt(PipelinePhase.Triage, null);
         return await _llmApiClient.TriageAsync(
             doc,
             rawFile,
@@ -39,7 +39,7 @@ public class PdfDocumentProcessor : IDocumentProcessor
     public async Task<ExtractionResult> ExtractAsync(Document doc, Stream rawFile, ILlmApiClient llmClient, CancellationToken ct)
     {
         _logger.LogInformation("Extracting PDF document {DocumentId} via LLM", doc.Id);
-        var (promptText, promptVersion) = _promptService.GetPrompt("extraction", doc.DocumentType);
+        var (promptText, promptVersion) = _promptService.GetPrompt(PipelinePhase.Extraction, doc.DocumentType);
         return await llmClient.ExtractAsync(
             doc,
             rawFile,

@@ -1,4 +1,5 @@
 using Conspectare.Domain.Entities;
+using Conspectare.Domain.Enums;
 using Conspectare.Services.Core.Database;
 using NHibernate.Criterion;
 
@@ -12,7 +13,7 @@ public class FindPendingWebhookDeliveriesQuery(int batchSize)
         var utcNow = DateTime.UtcNow;
 
         return Session.QueryOver<WebhookDelivery>()
-            .Where(w => w.Status == "pending")
+            .Where(w => w.Status == WebhookDeliveryStatus.Pending)
             .And(Restrictions.Disjunction()
                 .Add(Restrictions.On<WebhookDelivery>(w => w.NextAttemptAt).IsNull)
                 .Add(Restrictions.Where<WebhookDelivery>(w => w.NextAttemptAt <= utcNow)))
