@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 namespace Conspectare.Services.Observability;
 public class ConspectareMetrics : IDisposable
@@ -9,6 +10,7 @@ public class ConspectareMetrics : IDisposable
     private readonly Histogram<double> _processingDuration;
     private readonly Histogram<double> _llmCallDuration;
     private readonly Counter<long> _llmTokens;
+    private readonly Counter<long> _memoryRecyclingTriggered;
     public Meter Meter { get; }
     public ConspectareMetrics()
     {
@@ -33,6 +35,19 @@ public class ConspectareMetrics : IDisposable
         _llmTokens = Meter.CreateCounter<long>(
             "conspectare.llm.tokens",
             description: "Number of tokens consumed by LLM calls");
+        _memoryRecyclingTriggered = Meter.CreateCounter<long>(
+            "conspectare.memory.recycling_triggered",
+            description: "Number of times memory recycling GC was triggered");
+        Meter.CreateObservableGauge(
+            "conspectare.memory.heap_size_bytes",
+            () => GC.GetTotalMemory(false),
+            unit: "bytes",
+            description: "Managed heap size in bytes");
+        Meter.CreateObservableGauge(
+            "conspectare.memory.working_set_bytes",
+            () => Process.GetCurrentProcess().WorkingSet64,
+            unit: "bytes",
+            description: "Process working set in bytes");
     }
     public void Dispose()
     {
@@ -71,5 +86,11 @@ public class ConspectareMetrics : IDisposable
         _llmTokens.Add(count,
             new KeyValuePair<string, object>("provider", provider),
             new KeyValuePair<string, object>("token_type", tokenType));
+    }
+    public void RecordMemoryRecyclingTriggered(long heapBeforeBytes, long heapAfterBytes)
+    {
+        _memoryRecyclingTriggered.Add(1,
+            new KeyValuePair<string, object>("heap_before_bytes", heapBeforeBytes),
+            new KeyValuePair<string, object>("heap_after_bytes", heapAfterBytes));
     }
 }
