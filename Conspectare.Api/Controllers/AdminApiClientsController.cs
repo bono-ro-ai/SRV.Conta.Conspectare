@@ -2,11 +2,13 @@ using Conspectare.Api.DTOs;
 using Conspectare.Services.Commands;
 using Conspectare.Services.Interfaces;
 using Conspectare.Services.Queries;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Conspectare.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/v1/admin/api-clients")]
 public class AdminApiClientsController : ControllerBase
 {
