@@ -2,11 +2,13 @@ using Conspectare.Api.DTOs;
 using Conspectare.Api.Extensions;
 using Conspectare.Services;
 using Conspectare.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Conspectare.Api.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/v1/documents")]
 public class DocumentsController : ControllerBase
 {

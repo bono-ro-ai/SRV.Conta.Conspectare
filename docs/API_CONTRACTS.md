@@ -2,7 +2,14 @@
 
 Last updated: 2026-03-23
 
-All endpoints require `Authorization: Bearer <api_key>` header.
+## API Surface Classification
+
+| Category | Endpoints | Auth Required |
+|----------|-----------|---------------|
+| **PUBLIC** | `POST /api/v1/auth/signup`, `POST /api/v1/auth/magic-link/send`, `POST /api/v1/auth/magic-link/verify` | No (anonymous) |
+| **TENANT API** | `POST /api/v1/documents`, `POST /api/v1/documents/batch`, `GET /api/v1/documents`, `GET /api/v1/documents/{id}`, `GET /api/v1/documents/{id}/raw`, `POST /api/v1/documents/{id}/retry`, `POST /api/v1/documents/{id}/resolve`, `PATCH /api/v1/documents/{id}/canonical-output`, `GET /api/v1/dashboard/*`, `GET /api/v1/tenant/settings`, `PUT /api/v1/tenant/settings`, `POST /api/v1/tenant/settings/rotate-api-key`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/me` | Yes (API key or JWT) |
+| **ADMIN** | `POST /api/v1/admin/api-clients`, `GET /api/v1/admin/api-clients`, `DELETE /api/v1/admin/api-clients/{id}`, `GET /api/v1/admin/usage`, `GET /api/v1/admin/usage/monthly`, `GET /api/v1/admin/review-queue`, `GET /api/v1/admin/review-queue/{id}`, `POST /api/v1/admin/review-queue/{id}/approve`, `POST /api/v1/admin/review-queue/{id}/reject` | Yes (auth + IsAdmin) |
+| **SYSTEM** | `GET /health` | No (anonymous) |
 
 ## Documents
 
@@ -469,28 +476,6 @@ Generate a new API key, invalidating the previous one.
   "apiKeyPrefix": "csp_new1"
 }
 ```
-
-### POST `/api/v1/auth/validate`
-
-Validate an API key.
-
-**Request**:
-```json
-{
-  "apiKey": "dp_test_abc123..."
-}
-```
-
-**Response** `200 OK`:
-```json
-{
-  "valid": true,
-  "clientName": "Test Client"
-}
-```
-
-**Error Responses**:
-- `401 Unauthorized` — Invalid API key
 
 ## Webhook Events
 
