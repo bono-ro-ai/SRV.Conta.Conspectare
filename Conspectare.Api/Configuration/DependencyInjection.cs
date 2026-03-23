@@ -189,19 +189,8 @@ internal static class DependencyInjection
                     var xTenant = context.HttpContext.Request.Headers["X-Tenant-Id"].FirstOrDefault();
                     if (xTenant != null && long.TryParse(xTenant, out var headerTenantId))
                         tenantContext.TenantId = headerTenantId;
-                    if (tenantContext.TenantId == 0 && tenantContext.IsAdmin)
-                    {
-                        try
-                        {
-                            var firstTenant = new Conspectare.Services.Queries.FindAllActiveTenantsQuery().Execute();
-                            if (firstTenant.Count > 0)
-                                tenantContext.TenantId = firstTenant[0].Id;
-                        }
-                        catch
-                        {
-                            tenantContext.TenantId = 2;
-                        }
-                    }
+                    if (tenantContext.TenantId == 0)
+                        tenantContext.TenantId = 2; // Dashboard Admin tenant
                     return Task.CompletedTask;
                 }
             };
