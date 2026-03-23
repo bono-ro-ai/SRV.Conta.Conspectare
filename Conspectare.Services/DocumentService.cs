@@ -17,6 +17,7 @@ public class DocumentService : IDocumentService
 {
     private readonly ISessionFactory _sessionFactory;
     private readonly IStorageService _storageService;
+    private readonly ICanonicalOutputJsonService _canonicalOutputJsonService;
     private readonly ITenantContext _tenantContext;
     private readonly DocumentStatusWorkflow _workflow;
     private readonly IPipelineSignal _pipelineSignal;
@@ -26,6 +27,7 @@ public class DocumentService : IDocumentService
     public DocumentService(
         ISessionFactory sessionFactory,
         IStorageService storageService,
+        ICanonicalOutputJsonService canonicalOutputJsonService,
         ITenantContext tenantContext,
         DocumentStatusWorkflow workflow,
         IPipelineSignal pipelineSignal,
@@ -34,6 +36,7 @@ public class DocumentService : IDocumentService
     {
         _sessionFactory = sessionFactory;
         _storageService = storageService;
+        _canonicalOutputJsonService = canonicalOutputJsonService;
         _tenantContext = tenantContext;
         _workflow = workflow;
         _pipelineSignal = pipelineSignal;
@@ -177,7 +180,7 @@ public class DocumentService : IDocumentService
         return OperationResult<Document>.Accepted(document);
     }
 
-    public Task<OperationResult<Document>> GetByIdAsync(long id, CancellationToken ct = default)
+    public async Task<OperationResult<Document>> GetByIdAsync(long id, CancellationToken ct = default)
     {
         var tenantId = _tenantContext.TenantId;
 
@@ -187,9 +190,11 @@ public class DocumentService : IDocumentService
             .Execute();
 
         if (document == null)
-            return Task.FromResult(OperationResult<Document>.NotFound($"Document with id {id} not found."));
+            return OperationResult<Document>.NotFound($"Document with id {id} not found.");
 
-        return Task.FromResult(OperationResult<Document>.Success(document));
+        await HydrateCanonicalOutputJsonAsync(document, ct);
+
+        return OperationResult<Document>.Success(document);
     }
 
     public Task<OperationResult<PagedResult<Document>>> ListAsync(
@@ -299,6 +304,12 @@ public class DocumentService : IDocumentService
             ? DocumentStatus.Rejected
             : DocumentStatus.Completed;
 
+        string outputJsonS3Key = null;
+        if (string.Equals(action, "provide_corrected", StringComparison.OrdinalIgnoreCase))
+        {
+            outputJsonS3Key = await _canonicalOutputJsonService.UploadAsync(tenantId, document.Id, canonicalOutputJson, ct);
+        }
+
         var resolvedEvent = new DocumentEvent
         {
             TenantId = tenantId,
@@ -311,7 +322,7 @@ public class DocumentService : IDocumentService
 
         using var transaction = session.BeginTransaction();
 
-        new ResolveDocumentCommand(document, action, canonicalOutputJson, resolvedEvent)
+        new ResolveDocumentCommand(document, action, canonicalOutputJson, outputJsonS3Key, resolvedEvent)
             .UseExternalSession(session)
             .Execute();
 
@@ -356,9 +367,11 @@ public class DocumentService : IDocumentService
 
         var utcNow = DateTime.UtcNow;
 
+        var outputJsonS3Key = await _canonicalOutputJsonService.UploadAsync(tenantId, document.Id, canonicalOutputJson, ct);
+
         using var transaction = session.BeginTransaction();
 
-        new UpdateCanonicalOutputCommand(document, canonicalOutputJson, utcNow)
+        new UpdateCanonicalOutputCommand(document, canonicalOutputJson, outputJsonS3Key, utcNow)
             .UseExternalSession(session)
             .Execute();
 
@@ -368,5 +381,20 @@ public class DocumentService : IDocumentService
             document.Id, tenantId);
 
         return OperationResult<Document>.Success(document);
+    }
+
+    private async Task HydrateCanonicalOutputJsonAsync(Document document, CancellationToken ct)
+    {
+        if (document.CanonicalOutput == null)
+            return;
+
+        if (!string.IsNullOrEmpty(document.CanonicalOutput.OutputJson))
+            return;
+
+        if (string.IsNullOrEmpty(document.CanonicalOutput.OutputJsonS3Key))
+            return;
+
+        document.CanonicalOutput.OutputJson =
+            await _canonicalOutputJsonService.DownloadAsync(document.CanonicalOutput.OutputJsonS3Key, ct);
     }
 }

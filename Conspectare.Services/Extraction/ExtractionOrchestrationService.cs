@@ -12,6 +12,7 @@ namespace Conspectare.Services.Extraction;
 public class ExtractionOrchestrationService
 {
     private readonly IStorageService _storageService;
+    private readonly ICanonicalOutputJsonService _canonicalOutputJsonService;
     private readonly IProcessorRegistry _processorRegistry;
     private readonly MultiModelExtractionService _multiModelService;
     private readonly MultiModelSettings _multiModelSettings;
@@ -21,6 +22,7 @@ public class ExtractionOrchestrationService
     private readonly ILogger<ExtractionOrchestrationService> _logger;
     public ExtractionOrchestrationService(
         IStorageService storageService,
+        ICanonicalOutputJsonService canonicalOutputJsonService,
         IProcessorRegistry processorRegistry,
         MultiModelExtractionService multiModelService,
         IOptions<MultiModelSettings> multiModelSettings,
@@ -30,6 +32,7 @@ public class ExtractionOrchestrationService
         ILogger<ExtractionOrchestrationService> logger)
     {
         _storageService = storageService;
+        _canonicalOutputJsonService = canonicalOutputJsonService;
         _processorRegistry = processorRegistry;
         _multiModelService = multiModelService;
         _multiModelSettings = multiModelSettings.Value;
@@ -70,11 +73,13 @@ public class ExtractionOrchestrationService
         doc.UpdatedAt = utcNow;
         if (nextStatus == DocumentStatus.Completed)
             doc.CompletedAt = utcNow;
+        var outputJsonS3Key = await _canonicalOutputJsonService.UploadAsync(doc.TenantId, doc.Id, result.OutputJson, ct);
         var canonicalOutput = new CanonicalOutput
         {
             TenantId = doc.TenantId,
             SchemaVersion = result.SchemaVersion,
             OutputJson = result.OutputJson,
+            OutputJsonS3Key = outputJsonS3Key,
             CreatedAt = utcNow
         };
         CanonicalOutputDenormalizer.TryDenormalizeFields(canonicalOutput, result.OutputJson);
@@ -192,11 +197,13 @@ public class ExtractionOrchestrationService
         doc.UpdatedAt = utcNow;
         if (nextStatus == DocumentStatus.Completed)
             doc.CompletedAt = utcNow;
+        var outputJsonS3Key = await _canonicalOutputJsonService.UploadAsync(doc.TenantId, doc.Id, winningResult.OutputJson, ct);
         var canonicalOutput = new CanonicalOutput
         {
             TenantId = doc.TenantId,
             SchemaVersion = winningResult.SchemaVersion,
             OutputJson = winningResult.OutputJson,
+            OutputJsonS3Key = outputJsonS3Key,
             ConsensusStrategy = consensus.StrategyUsed,
             WinningModelId = winningResult.ModelId,
             CreatedAt = utcNow

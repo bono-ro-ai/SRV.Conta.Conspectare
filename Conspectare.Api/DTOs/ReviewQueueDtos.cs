@@ -47,13 +47,15 @@ public record ReviewQueueDetailResponse(
     DateTime CreatedAt,
     DateTime UpdatedAt)
 {
-    public static ReviewQueueDetailResponse FromEntity(Document document, string preSignedUrl)
+    public static ReviewQueueDetailResponse FromEntity(Document document, string preSignedUrl, string canonicalOutputJson = null)
     {
         var flags = document.ReviewFlags?
             .Select(ReviewFlagResponse.FromEntity)
             .ToList()
             .AsReadOnly()
             ?? (IReadOnlyList<ReviewFlagResponse>)Array.Empty<ReviewFlagResponse>();
+
+        var canonicalJson = canonicalOutputJson ?? document.CanonicalOutput?.OutputJson;
 
         return new ReviewQueueDetailResponse(
             document.Id,
@@ -65,7 +67,7 @@ public record ReviewQueueDetailResponse(
             document.DocumentType,
             document.TriageConfidence,
             document.ReviewFlags?.Count ?? 0,
-            document.CanonicalOutput?.OutputJson,
+            canonicalJson,
             flags,
             preSignedUrl,
             document.IsAccountingRelevant,

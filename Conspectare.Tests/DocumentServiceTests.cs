@@ -103,6 +103,7 @@ public sealed class SharedConnectionSessionFactory : IDisposable
 public class DocumentServiceTests
 {
     private readonly MockStorageService _storageService = new();
+    private readonly ICanonicalOutputJsonService _canonicalOutputJsonService;
     private readonly MockTenantContext _tenantContext = new() { TenantId = 1, ApiKeyPrefix = "dp_test_" };
     private readonly DocumentStatusWorkflow _workflow = new();
     private readonly IPipelineSignal _pipelineSignal = Mock.Of<IPipelineSignal>();
@@ -111,6 +112,7 @@ public class DocumentServiceTests
 
     public DocumentServiceTests()
     {
+        _canonicalOutputJsonService = new CanonicalOutputJsonService(_storageService);
         _documentRefAllocator
             .Setup(a => a.AllocateRefAsync(It.IsAny<NHibernate.ISession>(), It.IsAny<string>()))
             .ReturnsAsync("007-26-1");
@@ -119,7 +121,7 @@ public class DocumentServiceTests
     private DocumentService CreateService(SharedConnectionSessionFactory sharedFactory)
     {
         var adapter = new SessionFactoryAdapter(sharedFactory);
-        return new DocumentService(adapter, _storageService, _tenantContext, _workflow, _pipelineSignal, _documentRefAllocator.Object, _logger);
+        return new DocumentService(adapter, _storageService, _canonicalOutputJsonService, _tenantContext, _workflow, _pipelineSignal, _documentRefAllocator.Object, _logger);
     }
 
     private ApiClient CreateTenant(ISession session, string name = "Test Tenant")
@@ -664,7 +666,9 @@ public class DocumentServiceTests
 
         using var verifySession = sharedFactory.OpenSession();
         var updated = verifySession.Get<CanonicalOutput>(doc.CanonicalOutput.Id);
-        Assert.Equal(correctedJson, updated.OutputJson);
+        Assert.NotNull(updated.OutputJsonS3Key);
+        var downloadedJson = await _canonicalOutputJsonService.DownloadAsync(updated.OutputJsonS3Key);
+        Assert.Equal(correctedJson, downloadedJson);
     }
 
     [Fact]
@@ -818,7 +822,9 @@ public class DocumentServiceTests
 
         using var verifySession = sharedFactory.OpenSession();
         var updated = verifySession.Get<CanonicalOutput>(doc.CanonicalOutput.Id);
-        Assert.Equal(newJson, updated.OutputJson);
+        Assert.NotNull(updated.OutputJsonS3Key);
+        var downloadedJson = await _canonicalOutputJsonService.DownloadAsync(updated.OutputJsonS3Key);
+        Assert.Equal(newJson, downloadedJson);
     }
 
     [Fact]
