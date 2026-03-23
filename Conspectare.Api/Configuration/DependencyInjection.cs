@@ -3,6 +3,8 @@ using ISession = NHibernate.ISession;
 using Conspectare.Api.Authentication;
 using Conspectare.Infrastructure.Settings;
 using Conspectare.Services;
+using Conspectare.Services.Auth;
+using Conspectare.Services.Configuration;
 using Conspectare.Infrastructure.Llm.Configuration;
 using Conspectare.Services.Configuration;
 using Conspectare.Services.Email;
@@ -24,9 +26,11 @@ internal static class DependencyInjection
         services.AddScoped<ITenantContext, TenantContext>();
 
         services.Configure<JwtSettings>(config.GetSection("Jwt"));
+        services.Configure<GoogleAuthSettings>(config.GetSection("Google"));
         services.Configure<MandrillSettings>(config.GetSection("Mandrill"));
         services.Configure<AppSettings>(config.GetSection("App"));
         services.AddHttpClient<IEmailService, MandrillEmailService>();
+        services.AddSingleton<IGoogleTokenValidator, GoogleTokenValidator>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
 

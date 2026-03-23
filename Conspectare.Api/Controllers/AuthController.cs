@@ -50,7 +50,37 @@ public class AuthController : ControllerBase
         var response = new AuthResponse(
             result.Data.Token,
             result.Data.ExpiresAt,
-            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role));
+            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role, result.Data.User.AvatarUrl));
+
+        return Ok(response);
+    }
+
+    [HttpPost("google")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Credential))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Google credential is required."
+            });
+        }
+
+        var result = await _authService.GoogleLoginAsync(request.Credential);
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken, _jwtSettings.RefreshTokenExpirationDays);
+
+        var response = new AuthResponse(
+            result.Data.Token,
+            result.Data.ExpiresAt,
+            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role, result.Data.User.AvatarUrl));
 
         return Ok(response);
     }
@@ -190,7 +220,7 @@ public class AuthController : ControllerBase
         var response = new AuthResponse(
             result.Data.Token,
             result.Data.ExpiresAt,
-            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role));
+            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role, result.Data.User.AvatarUrl));
 
         return Ok(response);
     }
@@ -283,7 +313,7 @@ public class AuthController : ControllerBase
         var response = new AuthResponse(
             result.Data.Token,
             result.Data.ExpiresAt,
-            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role));
+            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role, result.Data.User.AvatarUrl));
 
         return Ok(response);
     }
@@ -306,6 +336,6 @@ public class AuthController : ControllerBase
             return result.ToActionResult();
 
         var user = result.Data;
-        return Ok(new UserInfoResponse(user.Id, user.Email, user.Name, user.Role));
+        return Ok(new UserInfoResponse(user.Id, user.Email, user.Name, user.Role, user.AvatarUrl));
     }
 }

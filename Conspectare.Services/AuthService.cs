@@ -20,17 +20,21 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly AppSettings _appSettings;
     private readonly ILogger<AuthService> _logger;
+    private readonly GoogleAuthSettings _googleSettings;
+    private readonly IGoogleTokenValidator _googleTokenValidator;
     private const int MaxFailedAttempts = 5;
     private const int MagicLinkExpiryMinutes = 15;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
     private static readonly string DummyHash = BCrypt.Net.BCrypt.HashPassword("dummy-timing-safe", workFactor: 12);
 
-    public AuthService(IOptions<JwtSettings> jwtSettings, IEmailService emailService, IOptions<AppSettings> appSettings, ILogger<AuthService> logger)
+    public AuthService(IOptions<JwtSettings> jwtSettings, IEmailService emailService, IOptions<AppSettings> appSettings, ILogger<AuthService> logger, IOptions<GoogleAuthSettings> googleOptions, IGoogleTokenValidator googleTokenValidator)
     {
         _jwtSettings = jwtSettings.Value;
         _emailService = emailService;
         _appSettings = appSettings.Value;
         _logger = logger;
+        _googleSettings = googleOptions.Value;
+        _googleTokenValidator = googleTokenValidator;
     }
 
     public Task<OperationResult<AuthResult>> LoginAsync(string email, string password)
@@ -56,7 +60,7 @@ public class AuthService : IAuthService
 
         if (string.IsNullOrEmpty(user.PasswordHash))
         {
-            return Task.FromResult(OperationResult<AuthResult>.Unauthorized("Invalid email or password."));
+            return Task.FromResult(OperationResult<AuthResult>.BadRequest("This account uses Google sign-in. Please log in with Google."));
         }
 
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
@@ -394,6 +398,74 @@ public class AuthService : IAuthService
         };
 
         return (entity, rawToken);
+    }
+
+    public async Task<OperationResult<AuthResult>> GoogleLoginAsync(string credential)
+    {
+        GoogleTokenPayload payload;
+        try
+        {
+            payload = await _googleTokenValidator.ValidateAsync(credential, _googleSettings.ClientId);
+        }
+        catch
+        {
+            return OperationResult<AuthResult>.Unauthorized("Invalid Google credential.");
+        }
+
+        if (!payload.EmailVerified)
+        {
+            return OperationResult<AuthResult>.Unauthorized("Google email is not verified.");
+        }
+
+        if (!payload.Email.EndsWith($"@{_googleSettings.AllowedDomain}", StringComparison.OrdinalIgnoreCase))
+        {
+            return OperationResult<AuthResult>.Forbidden($"Only @{_googleSettings.AllowedDomain} accounts are allowed.");
+        }
+
+        var user = new LoadUserByGoogleIdQuery(payload.Subject).Execute();
+
+        if (user == null)
+        {
+            user = new LoadUserByEmailQuery(payload.Email).Execute();
+
+            if (user != null)
+            {
+                user.GoogleId = payload.Subject;
+                user.AvatarUrl = payload.Picture;
+                user.UpdatedAt = DateTime.UtcNow;
+                new SaveUserCommand(user).Execute();
+            }
+            else
+            {
+                var now = DateTime.UtcNow;
+                user = new User
+                {
+                    Email = payload.Email,
+                    Name = payload.Name,
+                    PasswordHash = null,
+                    GoogleId = payload.Subject,
+                    AvatarUrl = payload.Picture,
+                    Role = "admin",
+                    IsActive = true,
+                    FailedLoginAttempts = 0,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+                new SaveUserCommand(user).Execute();
+            }
+        }
+
+        user.LastLoginAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
+        new SaveUserCommand(user).Execute();
+
+        var (refreshEntity, rawRefreshToken) = CreateRefreshToken(user.Id);
+        new SaveRefreshTokenCommand(refreshEntity).Execute();
+
+        var jwtToken = GenerateJwtToken(user);
+        var expiresAt = DateTime.UtcNow.AddMinutes(_jwtSettings.AccessTokenExpirationMinutes);
+        return OperationResult<AuthResult>.Success(
+            new AuthResult(jwtToken, expiresAt, user, rawRefreshToken));
     }
 
     private static string ComputeTokenHash(string rawToken)

@@ -41,7 +41,9 @@ public class SignupTests : IDisposable
             Options.Create(TestJwtSettings),
             emailServiceMock.Object,
             Options.Create(new AppSettings { FrontendUrl = "https://test.com" }),
-            NullLogger<AuthService>.Instance);
+            NullLogger<AuthService>.Instance,
+            Options.Create(new GoogleAuthSettings()),
+            new Mock<IGoogleTokenValidator>().Object);
     }
 
     public void Dispose()

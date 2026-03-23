@@ -43,7 +43,9 @@ public class AuthControllerTests : IDisposable
             Options.Create(TestJwtSettings),
             emailServiceMock.Object,
             Options.Create(new AppSettings { FrontendUrl = "https://test.com" }),
-            NullLogger<AuthService>.Instance);
+            NullLogger<AuthService>.Instance,
+            Options.Create(new GoogleAuthSettings()),
+            new Mock<IGoogleTokenValidator>().Object);
         _tenantContext = new MockTenantContext { TenantId = 1, IsAdmin = true, ApiKeyPrefix = "csp_test" };
         _controller = new AuthController(_authService, _tenantContext, Options.Create(TestJwtSettings));
         _controller.ControllerContext = new ControllerContext

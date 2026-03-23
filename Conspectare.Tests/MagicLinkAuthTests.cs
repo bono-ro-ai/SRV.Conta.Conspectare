@@ -50,7 +50,9 @@ public class MagicLinkAuthTests : IDisposable
             Options.Create(TestJwtSettings),
             _emailServiceMock.Object,
             Options.Create(TestAppSettings),
-            NullLogger<AuthService>.Instance);
+            NullLogger<AuthService>.Instance,
+            Options.Create(new GoogleAuthSettings()),
+            new Mock<IGoogleTokenValidator>().Object);
     }
 
     public void Dispose()
@@ -185,14 +187,14 @@ public class MagicLinkAuthTests : IDisposable
     }
 
     [Fact]
-    public async Task Login_UserWithNullPasswordHash_ReturnsUnauthorized()
+    public async Task Login_UserWithNullPasswordHash_ReturnsBadRequest()
     {
         await _authService.SendMagicLinkAsync("magiconly@test.com", "127.0.0.1");
 
         var result = await _authService.LoginAsync("magiconly@test.com", "anypassword");
 
         Assert.False(result.IsSuccess);
-        Assert.Equal(401, result.StatusCode);
+        Assert.Equal(400, result.StatusCode);
     }
 
     private static string ExtractTokenFromUrl(string url)
