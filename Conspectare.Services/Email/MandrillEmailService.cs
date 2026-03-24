@@ -60,13 +60,39 @@ public class MandrillEmailService : IEmailService
         return $"""
                 <!DOCTYPE html>
                 <html>
-                <head><meta charset="utf-8"></head>
-                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h2 style="color: #333;">Autentificare Conspectare</h2>
-                  <p>Apasă butonul de mai jos pentru a te autentifica:</p>
-                  <a href="{url}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">Autentificare</a>
-                  <p style="margin-top: 20px; color: #666; font-size: 14px;">Linkul expiră în 15 minute. Dacă nu ai solicitat acest email, te rugăm să îl ignori.</p>
-                  <p style="margin-top: 10px; color: #999; font-size: 12px;">Dacă butonul nu funcționează, copiază acest link în browser:<br/><a href="{url}">{url}</a></p>
+                <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+                <body style="margin: 0; padding: 0; background-color: #fdeef4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" style="width: 100%; background-color: #fdeef4;">
+                    <tr>
+                      <td align="center" style="padding: 40px 20px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+                          <tr>
+                            <td style="background: linear-gradient(135deg, #ee4379 0%, #f472a8 100%); padding: 32px 40px; text-align: center;">
+                              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: 1px;">CONSPECTARE</h1>
+                              <p style="margin: 4px 0 0; color: rgba(255,255,255,0.85); font-size: 13px;">by Bono</p>
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style="padding: 36px 40px;">
+                              <p style="margin: 0 0 16px; color: #1a1a1a; font-size: 16px; font-weight: 600;">Salut!</p>
+                              <p style="margin: 0 0 28px; color: #4a4a4a; font-size: 15px; line-height: 1.6;">Ai solicitat un link de autentificare. Apasă butonul de mai jos pentru a te conecta la contul tău:</p>
+                              <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                                <tr>
+                                  <td align="center" style="border-radius: 28px; background: linear-gradient(135deg, #ee4379 0%, #d63031 100%);">
+                                    <a href="{url}" style="display: inline-block; padding: 14px 48px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; letter-spacing: 0.3px;">Conectează-te</a>
+                                  </td>
+                                </tr>
+                              </table>
+                              <p style="margin: 28px 0 0; color: #888888; font-size: 13px; line-height: 1.5;">Dacă butonul nu funcționează, copiază și lipește următorul link în browser:</p>
+                              <p style="margin: 8px 0 0;"><a href="{url}" style="color: #ee4379; font-size: 13px; word-break: break-all;">{url}</a></p>
+                              <p style="margin: 24px 0 0; color: #888888; font-size: 13px; line-height: 1.5;">Link-ul expiră în 15 minute. Dacă nu ai solicitat acest link, poți ignora acest email în siguranță — contul tău nu a fost compromis.</p>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin: 20px 0 0; color: #c4849e; font-size: 12px;">Trimis prin <a href="https://conspectare.bono.ro" style="color: #ee4379; text-decoration: none;">Conspectare by Bono</a></p>
+                      </td>
+                    </tr>
+                  </table>
                 </body>
                 </html>
                 """;
