@@ -52,7 +52,7 @@ public class MagicLinkAuthTests : IDisposable
             Options.Create(TestAppSettings),
             NullLogger<AuthService>.Instance,
             Options.Create(new GoogleAuthSettings()),
-            new Mock<IGoogleTokenValidator>().Object);
+            new Mock<IGoogleTokenValidator>().Object, new NoOpGoogleGroupChecker());
     }
 
     public void Dispose()

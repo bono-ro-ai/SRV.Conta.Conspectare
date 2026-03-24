@@ -1,3 +1,4 @@
+using Conspectare.Services.Auth;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Conspectare.Api.Controllers;
@@ -45,7 +46,7 @@ public class AuthControllerTests : IDisposable
             Options.Create(new AppSettings { FrontendUrl = "https://test.com" }),
             NullLogger<AuthService>.Instance,
             Options.Create(new GoogleAuthSettings()),
-            new Mock<IGoogleTokenValidator>().Object);
+            new Mock<IGoogleTokenValidator>().Object, new NoOpGoogleGroupChecker());
         _tenantContext = new MockTenantContext { TenantId = 1, IsAdmin = true, ApiKeyPrefix = "csp_test" };
         _controller = new AuthController(_authService, _tenantContext, Options.Create(TestJwtSettings));
         _controller.ControllerContext = new ControllerContext

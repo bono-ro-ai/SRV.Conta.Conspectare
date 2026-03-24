@@ -22,12 +22,13 @@ public class AuthService : IAuthService
     private readonly ILogger<AuthService> _logger;
     private readonly GoogleAuthSettings _googleSettings;
     private readonly IGoogleTokenValidator _googleTokenValidator;
+    private readonly IGoogleGroupChecker _groupChecker;
     private const int MaxFailedAttempts = 5;
     private const int MagicLinkExpiryMinutes = 15;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
     private static readonly string DummyHash = BCrypt.Net.BCrypt.HashPassword("dummy-timing-safe", workFactor: 12);
 
-    public AuthService(IOptions<JwtSettings> jwtSettings, IEmailService emailService, IOptions<AppSettings> appSettings, ILogger<AuthService> logger, IOptions<GoogleAuthSettings> googleOptions, IGoogleTokenValidator googleTokenValidator)
+    public AuthService(IOptions<JwtSettings> jwtSettings, IEmailService emailService, IOptions<AppSettings> appSettings, ILogger<AuthService> logger, IOptions<GoogleAuthSettings> googleOptions, IGoogleTokenValidator googleTokenValidator, IGoogleGroupChecker groupChecker)
     {
         _jwtSettings = jwtSettings.Value;
         _emailService = emailService;
@@ -35,6 +36,7 @@ public class AuthService : IAuthService
         _logger = logger;
         _googleSettings = googleOptions.Value;
         _googleTokenValidator = googleTokenValidator;
+        _groupChecker = groupChecker;
     }
 
     public Task<OperationResult<AuthResult>> LoginAsync(string email, string password)
@@ -389,6 +391,11 @@ public class AuthService : IAuthService
         if (!payload.Email.EndsWith($"@{_googleSettings.AllowedDomain}", StringComparison.OrdinalIgnoreCase))
         {
             return OperationResult<AuthResult>.Forbidden($"Only @{_googleSettings.AllowedDomain} accounts are allowed.");
+        }
+
+        if (!await _groupChecker.IsMemberAsync(payload.Email))
+        {
+            return OperationResult<AuthResult>.Forbidden($"You must be a member of {_googleSettings.AllowedGroup} to access this application.");
         }
 
         var user = new LoadUserByGoogleIdQuery(payload.Subject).Execute();

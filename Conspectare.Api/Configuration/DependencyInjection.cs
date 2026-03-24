@@ -31,6 +31,7 @@ internal static class DependencyInjection
         services.Configure<AppSettings>(config.GetSection("App"));
         services.AddHttpClient<IEmailService, MandrillEmailService>();
         services.AddSingleton<IGoogleTokenValidator, GoogleTokenValidator>();
+        services.AddSingleton<IGoogleGroupChecker, GoogleGroupChecker>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
 

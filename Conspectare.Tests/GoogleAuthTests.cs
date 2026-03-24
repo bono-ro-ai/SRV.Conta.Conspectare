@@ -1,3 +1,4 @@
+using Conspectare.Services.Auth;
 using Conspectare.Domain.Entities;
 using Conspectare.Services;
 using Conspectare.Services.Configuration;
@@ -46,7 +47,8 @@ public class GoogleAuthTests : IDisposable
             Options.Create(new AppSettings { FrontendUrl = "https://test.com" }),
             NullLogger<AuthService>.Instance,
             Options.Create(TestGoogleSettings),
-            _mockGoogleValidator.Object);
+            _mockGoogleValidator.Object,
+            new NoOpGoogleGroupChecker());
     }
 
     public void Dispose()
