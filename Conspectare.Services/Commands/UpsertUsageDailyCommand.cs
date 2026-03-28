@@ -7,6 +7,12 @@ namespace Conspectare.Services.Commands;
 public class UpsertUsageDailyCommand(long tenantId, DateTime usageDate, UsageAggregateResult aggregate)
     : NHibernateConspectareCommand
 {
+    /// <summary>
+    /// Inserts or updates the daily usage summary for the given tenant and date.
+    /// If a row already exists for the tenant/date pair all metric fields are
+    /// overwritten with the freshly computed aggregate; otherwise a new row is
+    /// inserted. This is safe to call multiple times for the same date (idempotent).
+    /// </summary>
     protected override void OnExecute()
     {
         var existing = Session.QueryOver<UsageDaily>()

@@ -10,6 +10,10 @@ public class SaveIngestedDocumentCommand(
     DocumentEvent triageEvent)
     : NHibernateConspectareCommand
 {
+    /// <summary>
+    /// Persists the newly ingested document together with its initial artifact and the
+    /// two audit events (ingested + pending-triage) in a single transaction.
+    /// </summary>
     protected override void OnExecute()
     {
         Session.Save(document);

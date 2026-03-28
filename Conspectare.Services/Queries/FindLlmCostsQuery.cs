@@ -7,8 +7,14 @@ namespace Conspectare.Services.Queries;
 public class FindLlmCostsQuery(long tenantId, DateTime from, DateTime to)
     : NHibernateConspectareQuery<IList<LlmCostResult>>
 {
+    /// <summary>
+    /// Returns per-model token usage and attempt counts for the specified tenant within the given
+    /// date range. Attempts without a model ID (e.g. failed before dispatch) are excluded.
+    /// Results are grouped by model so callers can compute cost per model independently.
+    /// </summary>
     protected override IList<LlmCostResult> OnExecute()
     {
+        // NHibernate alias trick: a null local is used purely to capture property names for projection aliases.
         LlmCostResult result = null;
 
         return Session.QueryOver<ExtractionAttempt>()

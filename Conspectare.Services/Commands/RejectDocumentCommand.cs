@@ -8,6 +8,10 @@ public class RejectDocumentCommand(
     DocumentEvent auditEvent)
     : NHibernateConspectareCommand
 {
+    /// <summary>
+    /// Persists the rejection of a document: updates the document record and saves
+    /// the rejection audit event in a single transaction.
+    /// </summary>
     protected override void OnExecute()
     {
         Session.Update(document);

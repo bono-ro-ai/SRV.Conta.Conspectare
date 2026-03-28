@@ -8,6 +8,10 @@ using Microsoft.Extensions.Options;
 
 namespace Conspectare.Services.Infrastructure;
 
+/// <summary>
+/// AWS S3-backed implementation of <see cref="IStorageService"/>.
+/// Supports an optional <c>ServiceUrl</c> override to target S3-compatible stores (e.g. MinIO in dev/test).
+/// </summary>
 public class S3StorageService : IStorageService
 {
     private readonly IAmazonS3 _s3;
@@ -26,6 +30,7 @@ public class S3StorageService : IStorageService
             RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(settings.Region)
         };
 
+        // When a ServiceUrl is configured, switch to path-style addressing for S3-compatible endpoints.
         if (!string.IsNullOrEmpty(settings.ServiceUrl))
         {
             config.ServiceURL = settings.ServiceUrl;
@@ -35,6 +40,9 @@ public class S3StorageService : IStorageService
         _s3 = new AmazonS3Client(credentials, config);
     }
 
+    /// <summary>
+    /// Uploads a stream to S3 under the given <paramref name="key"/> and returns the key on success.
+    /// </summary>
     public async Task<string> UploadAsync(string key, Stream data, string contentType, CancellationToken ct = default)
     {
         var request = new PutObjectRequest
@@ -50,6 +58,10 @@ public class S3StorageService : IStorageService
         return key;
     }
 
+    /// <summary>
+    /// Downloads the object at <paramref name="key"/> and returns the raw response stream.
+    /// The caller is responsible for disposing the returned stream.
+    /// </summary>
     public async Task<Stream> DownloadAsync(string key, CancellationToken ct = default)
     {
         var request = new GetObjectRequest
@@ -63,6 +75,10 @@ public class S3StorageService : IStorageService
         return response.ResponseStream;
     }
 
+    /// <summary>
+    /// Returns <c>true</c> if an object with <paramref name="key"/> exists in the bucket;
+    /// returns <c>false</c> for 404 responses without throwing.
+    /// </summary>
     public async Task<bool> ExistsAsync(string key, CancellationToken ct = default)
     {
         try
@@ -82,6 +98,9 @@ public class S3StorageService : IStorageService
         }
     }
 
+    /// <summary>
+    /// Permanently deletes the object at <paramref name="key"/> from the bucket.
+    /// </summary>
     public async Task DeleteAsync(string key, CancellationToken ct = default)
     {
         var request = new DeleteObjectRequest
@@ -94,6 +113,10 @@ public class S3StorageService : IStorageService
         _logger.LogInformation("Deleted {Key} from bucket {Bucket}", key, _bucketName);
     }
 
+    /// <summary>
+    /// Generates a pre-signed GET URL for the object at <paramref name="key"/> that expires
+    /// after the specified <paramref name="expiry"/> duration.
+    /// </summary>
     public Task<string> GeneratePresignedUrlAsync(string key, TimeSpan expiry, CancellationToken ct = default)
     {
         var request = new GetPreSignedUrlRequest

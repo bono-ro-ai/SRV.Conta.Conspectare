@@ -32,6 +32,10 @@ public class ReviewQueueController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Returns a paginated list of documents currently awaiting human review.
+    /// Requires admin access.
+    /// </summary>
     [HttpGet]
     public IActionResult List(
         [FromQuery] int page = 1,
@@ -75,6 +79,7 @@ public class ReviewQueueController : ControllerBase
         var response = new ReviewQueueListResponse(
             items,
             result.TotalCount,
+            // HasNextPage: true when the current page does not exhaust the total.
             (page * pageSize) < result.TotalCount,
             page,
             pageSize);
@@ -82,6 +87,11 @@ public class ReviewQueueController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Returns the full detail of a single review-queue document, including a 15-minute
+    /// pre-signed S3 URL for the raw file and the current canonical output JSON (if present).
+    /// Requires admin access.
+    /// </summary>
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(long id, CancellationToken ct)
     {
@@ -109,6 +119,7 @@ public class ReviewQueueController : ControllerBase
         var preSignedUrl = await _storageService.GeneratePresignedUrlAsync(
             document.RawFileS3Key, TimeSpan.FromMinutes(15), ct);
 
+        // Only fetch the canonical output JSON when the document has one stored in S3.
         string canonicalOutputJson = null;
         if (document.CanonicalOutput != null && !string.IsNullOrEmpty(document.CanonicalOutput.OutputJsonS3Key))
             canonicalOutputJson = await _canonicalOutputJsonService.DownloadAsync(document.CanonicalOutput.OutputJsonS3Key, ct);
@@ -116,6 +127,11 @@ public class ReviewQueueController : ControllerBase
         return Ok(ReviewQueueDetailResponse.FromEntity(document, preSignedUrl, canonicalOutputJson));
     }
 
+    /// <summary>
+    /// Approves the specified document, optionally attaching reviewer notes.
+    /// Transitions the document out of the review queue.
+    /// Requires admin access.
+    /// </summary>
     [HttpPost("{id:long}/approve")]
     public async Task<IActionResult> Approve(
         long id,
@@ -140,6 +156,11 @@ public class ReviewQueueController : ControllerBase
         return Ok(ReviewQueueItemResponse.FromEntity(result.Data));
     }
 
+    /// <summary>
+    /// Rejects the specified document with a mandatory reason.
+    /// Transitions the document out of the review queue.
+    /// Requires admin access.
+    /// </summary>
     [HttpPost("{id:long}/reject")]
     public async Task<IActionResult> Reject(
         long id,

@@ -7,6 +7,10 @@ using Microsoft.Extensions.Options;
 
 namespace Conspectare.Services.ExternalIntegrations.Anaf;
 
+/// <summary>
+/// HTTP client for the Romanian ANAF VAT registry API (anaf.ro/api/v9/ws/tva).
+/// Validates that a given fiscal code (CUI) is registered and active in the ANAF database.
+/// </summary>
 public class AnafVatValidationClient : IAnafVatValidationClient
 {
     private readonly HttpClient _httpClient;
@@ -21,13 +25,22 @@ public class AnafVatValidationClient : IAnafVatValidationClient
         _httpClient = httpClient;
         _settings = options.Value;
         _logger = logger;
+
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
     }
 
+    /// <summary>
+    /// Validates a Romanian fiscal code (CUI) against the ANAF VAT registry for today's date.
+    /// Automatically strips the "RO" prefix if present.
+    /// Retries on timeout or transient HTTP errors up to <see cref="AnafVatValidationSettings.MaxRetries"/> times
+    /// with exponential-ish back-off (2 s → 5 s → 10 s).
+    /// Returns a failed <see cref="AnafValidationResult"/> (never throws) on all error paths.
+    /// </summary>
     public async Task<AnafValidationResult> ValidateCuiAsync(string cui, CancellationToken ct)
     {
         var numericCui = StripCuiPrefix(cui);
+
         if (!long.TryParse(numericCui, out var cuiNumber))
         {
             return new AnafValidationResult(
@@ -38,6 +51,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
                 ValidationError: $"CUI '{cui}' is not a valid numeric identifier");
         }
 
+        // Romanian CUIs are 2–10 digits; anything outside that range is immediately invalid.
         if (numericCui.Length < 2 || numericCui.Length > 10)
         {
             return new AnafValidationResult(
@@ -48,6 +62,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
                 ValidationError: $"CUI '{cui}' has invalid length ({numericCui.Length} digits) — Romanian CUIs must be 2-10 digits");
         }
 
+        // ANAF requires the lookup date in the request body; use today's UTC date.
         var today = DateTime.UtcNow.ToString("yyyy-MM-dd");
         var requestBody = new JsonArray
         {
@@ -66,6 +81,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
             }
             catch (TaskCanceledException) when (!ct.IsCancellationRequested)
             {
+                // The HttpClient's own timeout fired, not the caller's cancellation.
                 if (attempt >= _settings.MaxRetries)
                 {
                     return new AnafValidationResult(
@@ -96,6 +112,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
                     ValidationError: "ANAF API request failed");
             }
 
+            // Back-off: 2 s after 1st failure, 5 s after 2nd, 10 s thereafter.
             var delaySeconds = attempt switch { 0 => 2, 1 => 5, _ => 10 };
             await Task.Delay(TimeSpan.FromSeconds(delaySeconds), ct);
         }
@@ -108,6 +125,10 @@ public class AnafVatValidationClient : IAnafVatValidationClient
             ValidationError: "Exhausted all retry attempts");
     }
 
+    /// <summary>
+    /// Sends the prepared JSON request body to the ANAF endpoint and parses the response.
+    /// Separated from the retry loop to keep each concern isolated and to allow unit-testing the HTTP call.
+    /// </summary>
     internal async Task<AnafValidationResult> SendRequestAsync(
         string originalCui, JsonArray requestBody, CancellationToken ct)
     {
@@ -123,6 +144,10 @@ public class AnafVatValidationClient : IAnafVatValidationClient
         return ParseResponse(originalCui, responseJson);
     }
 
+    /// <summary>
+    /// Parses the ANAF JSON response body and maps it to an <see cref="AnafValidationResult"/>.
+    /// Returns a failed result rather than throwing on malformed JSON or missing registry entries.
+    /// </summary>
     internal static AnafValidationResult ParseResponse(string originalCui, string responseJson)
     {
         JsonNode root;
@@ -140,6 +165,7 @@ public class AnafVatValidationClient : IAnafVatValidationClient
                 ValidationError: "ANAF API returned malformed JSON response");
         }
 
+        // The ANAF API returns a "found" array; an empty array means the CUI is not registered.
         var found = root?["found"];
         if (found is not JsonArray foundArray || foundArray.Count == 0)
         {
@@ -154,6 +180,8 @@ public class AnafVatValidationClient : IAnafVatValidationClient
         var entry = foundArray[0];
         var dateGenerale = entry?["date_generale"];
         var companyName = dateGenerale?["denumire"]?.GetValue<string>();
+
+        // "inactpiInactiv" (sic — ANAF's field name) holds the inactive status flag.
         var inactivi = entry?["inactpiInactiv"];
         var statusInactivi = inactivi?["statusInactivi"]?.GetValue<bool>() ?? false;
 
@@ -165,12 +193,16 @@ public class AnafVatValidationClient : IAnafVatValidationClient
             ValidationError: null);
     }
 
+    /// <summary>
+    /// Strips the "RO" country prefix from a fiscal code if present, and trims surrounding whitespace.
+    /// </summary>
     private static string StripCuiPrefix(string cui)
     {
         if (string.IsNullOrWhiteSpace(cui))
             return cui;
 
         var trimmed = cui.Trim();
+
         if (trimmed.StartsWith("RO", StringComparison.OrdinalIgnoreCase))
             return trimmed[2..];
 

@@ -12,11 +12,22 @@ public class UpdateCanonicalOutputCommand(
     DateTime utcNow)
     : NHibernateConspectareCommand
 {
+    /// <summary>
+    /// Applies a manual correction to the canonical output of a document submitted
+    /// via the review UI. The raw JSON and S3 key are updated on the canonical output
+    /// record, and well-known top-level fields (invoice number, dates, CUIs, amounts)
+    /// are extracted and denormalized onto indexed columns for query performance.
+    /// JSON parsing errors are silently swallowed so a malformed correction does not
+    /// prevent the update from completing. An audit event is always saved.
+    /// </summary>
     protected override void OnExecute()
     {
         document.CanonicalOutput.OutputJson = canonicalOutputJson;
         document.CanonicalOutput.OutputJsonS3Key = outputJsonS3Key;
 
+        // Best-effort extraction of indexed fields from the corrected JSON.
+        // If the JSON is malformed the raw blob is still saved; the catch is
+        // intentional — a corrupt correction must not block the reviewer.
         try
         {
             using var jsonDoc = JsonDocument.Parse(canonicalOutputJson);
@@ -24,23 +35,31 @@ public class UpdateCanonicalOutputCommand(
 
             if (root.TryGetProperty("invoiceNumber", out var inv))
                 document.CanonicalOutput.InvoiceNumber = inv.GetString();
+
             if (root.TryGetProperty("issueDate", out var issued) && DateTime.TryParse(issued.GetString(), out var issueDateVal))
                 document.CanonicalOutput.IssueDate = issueDateVal;
+
             if (root.TryGetProperty("dueDate", out var due) && DateTime.TryParse(due.GetString(), out var dueDateVal))
                 document.CanonicalOutput.DueDate = dueDateVal;
+
             if (root.TryGetProperty("supplierCui", out var sCui))
                 document.CanonicalOutput.SupplierCui = sCui.GetString();
+
             if (root.TryGetProperty("customerCui", out var cCui))
                 document.CanonicalOutput.CustomerCui = cCui.GetString();
+
             if (root.TryGetProperty("currency", out var cur))
                 document.CanonicalOutput.Currency = cur.GetString();
+
             if (root.TryGetProperty("totalAmount", out var total) && total.TryGetDecimal(out var totalVal))
                 document.CanonicalOutput.TotalAmount = totalVal;
+
             if (root.TryGetProperty("vatAmount", out var vat) && vat.TryGetDecimal(out var vatVal))
                 document.CanonicalOutput.VatAmount = vatVal;
         }
         catch (JsonException)
         {
+            // Intentionally swallowed — raw JSON is saved even if field extraction fails.
         }
 
         Session.Merge(document.CanonicalOutput);

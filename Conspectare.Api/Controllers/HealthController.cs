@@ -24,6 +24,10 @@ public class HealthController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Probes the database and S3 storage to assess service health.
+    /// Returns HTTP 200 when both dependencies are reachable, or HTTP 503 when either fails.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> Get(CancellationToken ct)
     {
@@ -43,6 +47,7 @@ public class HealthController : ControllerBase
 
         try
         {
+            // ExistsAsync with a sentinel key is sufficient to verify S3 connectivity.
             await _storageService.ExistsAsync("health-probe", ct);
         }
         catch (Exception ex)

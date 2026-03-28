@@ -7,8 +7,13 @@ namespace Conspectare.Services.Queries;
 public class FindQueueDepthsQuery(long tenantId)
     : NHibernateConspectareQuery<IList<QueueDepthResult>>
 {
+    /// <summary>
+    /// Returns the document count grouped by status for the specified tenant,
+    /// giving a snapshot of how many documents are in each processing stage.
+    /// </summary>
     protected override IList<QueueDepthResult> OnExecute()
     {
+        // NHibernate alias trick: a null local is used purely to capture property names for projection aliases.
         QueueDepthResult result = null;
 
         return Session.QueryOver<Document>()

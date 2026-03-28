@@ -11,18 +11,33 @@ using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 namespace Conspectare.Infrastructure.Llm.Gemini;
+
+/// <summary>
+/// HTTP client for the Google Gemini generative language API.
+/// Implements <see cref="ILlmApiClient"/> using Gemini's function-calling feature to enforce
+/// structured JSON output for both triage (document classification) and data extraction.
+/// Supports an optional separate triage model via <see cref="GeminiApiSettings.TriageModel"/>.
+/// </summary>
 public class GeminiApiClient : ILlmApiClient
 {
+    // Snake_case serialisation matches the Gemini API wire format.
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = false
     };
+
     private readonly HttpClient _httpClient;
     private readonly GeminiApiSettings _settings;
     private readonly ILogger<GeminiApiClient> _logger;
     private readonly ConspectareMetrics _metrics;
+
+    /// <summary>
+    /// Initialises the client and configures the underlying <see cref="HttpClient"/>
+    /// with the Gemini base address, timeout, and the API key header.
+    /// </summary>
     public GeminiApiClient(
         HttpClient httpClient,
         IOptions<GeminiApiSettings> options,
@@ -33,64 +48,98 @@ public class GeminiApiClient : ILlmApiClient
         _settings = options.Value;
         _logger = logger;
         _metrics = metrics;
+
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
         _httpClient.DefaultRequestHeaders.Add("x-goog-api-key", _settings.ApiKey);
     }
+
+    /// <summary>
+    /// Sends the document to Gemini and returns a triage classification result.
+    /// Uses <see cref="GeminiApiSettings.TriageModel"/> when configured, falling back to
+    /// <see cref="GeminiApiSettings.Model"/>. The model is forced to call
+    /// <c>classify_document</c> via function calling, ensuring structured output.
+    /// </summary>
     public async Task<TriageResult> TriageAsync(
         Document doc, Stream rawFile, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
+
         var parts = await BuildPartsAsync(doc, rawFile, ct);
+
+        // Prepend the prompt text so the model sees instructions before the document content.
         parts.Insert(0, new JsonObject
         {
             ["text"] = promptText
         });
+
         var functionDeclaration = BuildTriageFunctionDeclaration();
         var requestBody = BuildRequestBody(parts, new[] { functionDeclaration }, "classify_document");
+
+        // Null out an empty TriageModel so the model-selection logic treats it as "not set".
         var triageModel = string.IsNullOrEmpty(_settings.TriageModel) ? null : _settings.TriageModel;
         var response = await SendWithRetryAsync(requestBody, ct, triageModel);
         sw.Stop();
+
         var (args, usage) = ParseFunctionCallResponse(response, "classify_document");
+
         _metrics.RecordLlmCallDuration("gemini", PipelinePhase.Triage, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("gemini", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
             _metrics.RecordLlmTokens("gemini", "output", usage.OutputTokens.Value);
+
         var documentType = args["document_type"]?.GetValue<string>() ?? "unknown";
         var confidence = args["confidence"]?.GetValue<decimal>() ?? 0m;
         var isAccountingRelevant = args["is_accounting_relevant"]?.GetValue<bool>() ?? false;
+
         return new TriageResult(
             DocumentType: documentType,
             Confidence: confidence,
             IsAccountingRelevant: isAccountingRelevant,
+            // Report whichever model was actually used so callers know which version classified.
             ModelId: triageModel ?? _settings.Model,
             PromptVersion: promptVersion,
             InputTokens: usage.InputTokens,
             OutputTokens: usage.OutputTokens,
             LatencyMs: (int)sw.ElapsedMilliseconds);
     }
+
+    /// <summary>
+    /// Sends the document to Gemini and returns a structured data extraction result.
+    /// The model is forced to call <c>extract_invoice_data</c>, returning all invoice
+    /// fields plus any review flags raised by the model.
+    /// </summary>
     public async Task<ExtractionResult> ExtractAsync(
         Document doc, Stream rawFile, string documentType, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
+
         var parts = await BuildPartsAsync(doc, rawFile, ct);
+
+        // Prepend the prompt text before document content, same as in TriageAsync.
         parts.Insert(0, new JsonObject
         {
             ["text"] = promptText
         });
+
         var functionDeclaration = BuildExtractionFunctionDeclaration();
         var requestBody = BuildRequestBody(parts, new[] { functionDeclaration }, "extract_invoice_data");
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
+
         var (args, usage) = ParseFunctionCallResponse(response, "extract_invoice_data");
+
         _metrics.RecordLlmCallDuration("gemini", PipelinePhase.Extraction, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("gemini", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
             _metrics.RecordLlmTokens("gemini", "output", usage.OutputTokens.Value);
+
         var outputJson = args.ToJsonString(JsonOptions);
         var schemaVersion = "1.0.0";
+
+        // Map the model's review_flags array into typed ReviewFlagInfo records.
         var reviewFlags = new List<ReviewFlagInfo>();
         if (args["review_flags"] is JsonArray flagsArray)
         {
@@ -105,6 +154,7 @@ public class GeminiApiClient : ILlmApiClient
                 }
             }
         }
+
         return new ExtractionResult(
             OutputJson: outputJson,
             SchemaVersion: schemaVersion,
@@ -115,16 +165,25 @@ public class GeminiApiClient : ILlmApiClient
             LatencyMs: (int)sw.ElapsedMilliseconds,
             ReviewFlags: reviewFlags);
     }
+
+    /// <summary>
+    /// Reads the raw file stream and converts it into the appropriate Gemini content part(s).
+    /// Images and PDFs are sent as base64-encoded inline data parts; all other content types
+    /// are read as plain text parts.
+    /// </summary>
     private async Task<List<JsonObject>> BuildPartsAsync(
         Document doc, Stream rawFile, CancellationToken ct)
     {
         var parts = new List<JsonObject>();
         var contentType = doc.ContentType?.ToLowerInvariant() ?? "";
+
         if (contentType.StartsWith("image/") || contentType == "application/pdf")
         {
             using var ms = new MemoryStream();
             await rawFile.CopyToAsync(ms, ct);
             var base64 = Convert.ToBase64String(ms.ToArray());
+
+            // Fall back to application/octet-stream for any unrecognised binary type.
             var mediaType = contentType switch
             {
                 "image/jpeg" => "image/jpeg",
@@ -134,6 +193,7 @@ public class GeminiApiClient : ILlmApiClient
                 "application/pdf" => "application/pdf",
                 _ => "application/octet-stream"
             };
+
             parts.Add(new JsonObject
             {
                 ["inlineData"] = new JsonObject
@@ -145,15 +205,24 @@ public class GeminiApiClient : ILlmApiClient
         }
         else
         {
+            // Plain text fallback — leaveOpen so the caller's stream remains usable.
             using var reader = new StreamReader(rawFile, leaveOpen: true);
             var text = await reader.ReadToEndAsync(ct);
+
             parts.Add(new JsonObject
             {
                 ["text"] = text
             });
         }
+
         return parts;
     }
+
+    /// <summary>
+    /// Assembles the Gemini generateContent request body with the provided content parts,
+    /// function declarations, and a forced function-calling config so the model must call
+    /// exactly the specified function.
+    /// </summary>
     private JsonObject BuildRequestBody(
         List<JsonObject> parts, JsonObject[] functionDeclarations, string forcedFunctionName)
     {
@@ -165,7 +234,9 @@ public class GeminiApiClient : ILlmApiClient
                 ["parts"] = new JsonArray(parts.Select(p => (JsonNode)p).ToArray())
             }
         };
+
         var declarationsArray = new JsonArray(functionDeclarations.Select(d => (JsonNode)d).ToArray());
+
         return new JsonObject
         {
             ["contents"] = contentsArray,
@@ -176,6 +247,7 @@ public class GeminiApiClient : ILlmApiClient
                     ["functionDeclarations"] = declarationsArray
                 }
             },
+            // "ANY" mode with allowedFunctionNames forces the model to call exactly this function.
             ["toolConfig"] = new JsonObject
             {
                 ["functionCallingConfig"] = new JsonObject
@@ -190,17 +262,28 @@ public class GeminiApiClient : ILlmApiClient
             }
         };
     }
+
+    /// <summary>
+    /// Posts the request body to the Gemini generateContent endpoint, retrying on rate-limit (429)
+    /// or service-unavailable (503) responses with an exponential back-off delay.
+    /// An optional <paramref name="modelOverride"/> selects a different model for the call
+    /// (used by triage when <see cref="GeminiApiSettings.TriageModel"/> is configured).
+    /// Throws <see cref="TimeoutException"/> when the HTTP client times out,
+    /// and <see cref="HttpRequestException"/> for non-retryable error responses.
+    /// </summary>
     internal async Task<JsonObject> SendWithRetryAsync(JsonObject requestBody, CancellationToken ct, string modelOverride = null)
     {
         var maxRetries = _settings.MaxRetries;
         var model = modelOverride ?? _settings.Model;
         var url = $"/v1beta/models/{model}:generateContent";
+
         for (var attempt = 0; attempt <= maxRetries; attempt++)
         {
             using var content = new StringContent(
                 requestBody.ToJsonString(JsonOptions),
                 Encoding.UTF8,
                 new MediaTypeHeaderValue("application/json"));
+
             HttpResponseMessage response;
             try
             {
@@ -208,17 +291,21 @@ public class GeminiApiClient : ILlmApiClient
             }
             catch (TaskCanceledException) when (!ct.IsCancellationRequested)
             {
+                // TaskCanceledException without a cancelled token means the HttpClient timed out.
                 throw new TimeoutException(
                     $"Gemini API request timed out after {_settings.TimeoutSeconds} seconds");
             }
+
             if (response.IsSuccessStatusCode)
             {
                 var responseJson = await response.Content.ReadAsStringAsync(ct);
                 return JsonNode.Parse(responseJson)?.AsObject()
                        ?? throw new InvalidOperationException("Gemini API returned empty response");
             }
+
             var statusCode = (int)response.StatusCode;
             var isRetryable = statusCode == 429 || statusCode == 503;
+
             if (!isRetryable || attempt >= maxRetries)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
@@ -227,14 +314,25 @@ public class GeminiApiClient : ILlmApiClient
                     null,
                     response.StatusCode);
             }
+
+            // Back-off schedule: 5 s → 15 s → 30 s for subsequent retries.
             var delaySeconds = attempt switch { 0 => 5, 1 => 15, _ => 30 };
             _logger.LogWarning(
                 "Gemini API returned {StatusCode}, retrying in {Delay}s (attempt {Attempt}/{MaxRetries})",
                 statusCode, delaySeconds, attempt + 1, maxRetries);
+
             await Task.Delay(TimeSpan.FromSeconds(delaySeconds), ct);
         }
+
         throw new InvalidOperationException("Exhausted all retry attempts");
     }
+
+    /// <summary>
+    /// Extracts the function-call arguments for the expected function from the first
+    /// candidate in the Gemini response, along with token usage metadata.
+    /// Throws <see cref="InvalidOperationException"/> if the response structure is unexpected
+    /// or the target function call is absent.
+    /// </summary>
     private static (JsonObject Args, UsageInfo Usage) ParseFunctionCallResponse(
         JsonObject response, string expectedFunctionName)
     {
@@ -243,8 +341,10 @@ public class GeminiApiClient : ILlmApiClient
         {
             throw new InvalidOperationException("Gemini API response missing or empty 'candidates' array");
         }
+
         var partsArray = candidates[0]?["content"]?["parts"]?.AsArray()
             ?? throw new InvalidOperationException("Gemini API response missing 'parts' array");
+
         JsonObject functionArgs = null;
         foreach (var part in partsArray)
         {
@@ -255,16 +355,25 @@ public class GeminiApiClient : ILlmApiClient
                 break;
             }
         }
+
         if (functionArgs == null)
         {
             throw new InvalidOperationException(
                 $"Gemini API response did not contain expected functionCall '{expectedFunctionName}'");
         }
+
+        // Gemini uses "usageMetadata" with different field names from the OpenAI/Claude convention.
         var usageMetadata = response["usageMetadata"]?.AsObject();
         var inputTokens = usageMetadata?["promptTokenCount"]?.GetValue<int>();
         var outputTokens = usageMetadata?["candidatesTokenCount"]?.GetValue<int>();
+
         return (functionArgs, new UsageInfo(inputTokens, outputTokens));
     }
+
+    /// <summary>
+    /// Builds the Gemini function declaration for <c>classify_document</c>,
+    /// which forces the model to output document type, confidence score, and accounting relevance.
+    /// </summary>
     private static JsonObject BuildTriageFunctionDeclaration()
     {
         return new JsonObject
@@ -300,9 +409,18 @@ public class GeminiApiClient : ILlmApiClient
             }
         };
     }
+
+    /// <summary>
+    /// Builds the Gemini function declaration for <c>extract_invoice_data</c>,
+    /// covering the full Romanian invoice schema with rich per-field descriptions
+    /// (supplier, customer, line items with VAT, totals, payment details, and review flags).
+    /// A local helper delegate is used to avoid duplicating the shared party-properties schema.
+    /// </summary>
     private static JsonObject BuildExtractionFunctionDeclaration()
     {
-        var partyProperties = new Func<bool, JsonObject>(includeBank => {
+        // Builds shared party properties (supplier or customer). includeBank adds IBAN/bank fields.
+        var partyProperties = new Func<bool, JsonObject>(includeBank =>
+        {
             var props = new JsonObject
             {
                 ["name"] = new JsonObject { ["type"] = "string", ["description"] = "Denumire completă (conform act constitutiv)" },
@@ -316,14 +434,17 @@ public class GeminiApiClient : ILlmApiClient
                 ["phone"] = new JsonObject { ["type"] = "string", ["description"] = "Telefon" },
                 ["email"] = new JsonObject { ["type"] = "string", ["description"] = "Email" }
             };
+
             if (includeBank)
             {
                 props["bank_account"] = new JsonObject { ["type"] = "string", ["description"] = "IBAN" };
                 props["bank_name"] = new JsonObject { ["type"] = "string", ["description"] = "Denumire bancă" };
                 props["swift_bic"] = new JsonObject { ["type"] = "string", ["description"] = "SWIFT/BIC code" };
             }
+
             return props;
         });
+
         return new JsonObject
         {
             ["name"] = "extract_invoice_data",
@@ -436,5 +557,7 @@ public class GeminiApiClient : ILlmApiClient
             }
         };
     }
+
+    /// <summary>Token usage counters returned by the Gemini API usageMetadata object.</summary>
     internal record UsageInfo(int? InputTokens, int? OutputTokens);
 }
