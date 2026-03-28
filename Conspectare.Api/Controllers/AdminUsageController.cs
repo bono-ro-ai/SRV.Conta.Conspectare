@@ -18,6 +18,10 @@ public class AdminUsageController : ControllerBase
         _tenant = tenant;
     }
 
+    /// <summary>
+    /// Returns per-day usage metrics for the specified tenant within a date range.
+    /// Requires admin access.
+    /// </summary>
     [HttpGet]
     public IActionResult GetDailyUsage([FromQuery] long tenantId, [FromQuery] DateTime from, [FromQuery] DateTime to)
     {
@@ -29,6 +33,7 @@ public class AdminUsageController : ControllerBase
                 Status = StatusCodes.Status403Forbidden,
                 Detail = "Admin access required."
             });
+
         if (tenantId <= 0)
             return BadRequest(new ProblemDetails
             {
@@ -37,6 +42,7 @@ public class AdminUsageController : ControllerBase
                 Status = StatusCodes.Status400BadRequest,
                 Detail = "tenantId must be a positive integer."
             });
+
         if (from == default || to == default)
             return BadRequest(new ProblemDetails
             {
@@ -45,6 +51,7 @@ public class AdminUsageController : ControllerBase
                 Status = StatusCodes.Status400BadRequest,
                 Detail = "from and to query parameters are required."
             });
+
         if (from > to)
             return BadRequest(new ProblemDetails
             {
@@ -59,9 +66,14 @@ public class AdminUsageController : ControllerBase
             r.UsageDate, r.DocumentsIngested, r.DocumentsProcessed,
             r.LlmInputTokens, r.LlmOutputTokens, r.LlmRequests,
             r.StorageBytes, r.ApiCalls)).ToList().AsReadOnly();
+
         return Ok(new UsageDailyResponse(items, tenantId, from, to));
     }
 
+    /// <summary>
+    /// Returns month-over-month usage summaries for the specified tenant within a date range.
+    /// Requires admin access.
+    /// </summary>
     [HttpGet("monthly")]
     public IActionResult GetMonthlyUsage([FromQuery] long tenantId, [FromQuery] DateTime from, [FromQuery] DateTime to)
     {
@@ -73,6 +85,7 @@ public class AdminUsageController : ControllerBase
                 Status = StatusCodes.Status403Forbidden,
                 Detail = "Admin access required."
             });
+
         if (tenantId <= 0)
             return BadRequest(new ProblemDetails
             {
@@ -81,6 +94,7 @@ public class AdminUsageController : ControllerBase
                 Status = StatusCodes.Status400BadRequest,
                 Detail = "tenantId must be a positive integer."
             });
+
         if (from == default || to == default)
             return BadRequest(new ProblemDetails
             {
@@ -89,6 +103,7 @@ public class AdminUsageController : ControllerBase
                 Status = StatusCodes.Status400BadRequest,
                 Detail = "from and to query parameters are required."
             });
+
         if (from > to)
             return BadRequest(new ProblemDetails
             {
@@ -103,6 +118,7 @@ public class AdminUsageController : ControllerBase
             s.Year, s.Month, s.DocumentsIngested, s.DocumentsProcessed,
             s.LlmInputTokens, s.LlmOutputTokens, s.LlmRequests,
             s.StorageBytes, s.ApiCalls)).ToList().AsReadOnly();
+
         return Ok(new MonthlyUsageSummaryResponse(items, tenantId, from, to));
     }
 }

@@ -18,6 +18,10 @@ public class TenantSettingsController : ControllerBase
         _settingsService = settingsService;
     }
 
+    /// <summary>
+    /// Returns the current settings for the authenticated tenant, including company details,
+    /// webhook configuration, and trial status.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetSettings()
     {
@@ -38,6 +42,10 @@ public class TenantSettingsController : ControllerBase
             s.IsTrialActive));
     }
 
+    /// <summary>
+    /// Updates the tenant's company name, CUI, webhook URL, and webhook secret.
+    /// Any field left null in the request is left unchanged.
+    /// </summary>
     [HttpPut]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdateTenantSettingsRequest request)
     {
@@ -75,6 +83,10 @@ public class TenantSettingsController : ControllerBase
             s.IsTrialActive));
     }
 
+    /// <summary>
+    /// Generates a new API key for the tenant and invalidates the previous one.
+    /// Returns the new plain-text key and its prefix; the plain key is not stored and cannot be retrieved again.
+    /// </summary>
     [HttpPost("rotate-api-key")]
     public async Task<IActionResult> RotateApiKey()
     {

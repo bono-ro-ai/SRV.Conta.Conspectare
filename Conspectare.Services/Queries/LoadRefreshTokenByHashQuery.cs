@@ -6,6 +6,11 @@ namespace Conspectare.Services.Queries;
 
 public class LoadRefreshTokenByHashQuery(string tokenHash) : NHibernateConspectareQuery<RefreshToken>
 {
+    /// <summary>
+    /// Loads the refresh token matching the given hash, eagerly fetching its associated user
+    /// in the same query to avoid a lazy-load round-trip during token validation.
+    /// Returns null if no matching token exists.
+    /// </summary>
     protected override RefreshToken OnExecute()
     {
         return Session.QueryOver<RefreshToken>()

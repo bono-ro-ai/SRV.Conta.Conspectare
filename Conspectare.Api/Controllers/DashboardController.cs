@@ -18,6 +18,9 @@ public class DashboardController : ControllerBase
         _tenant = tenant;
     }
 
+    /// <summary>
+    /// Returns the current document count grouped by processing status for the authenticated tenant.
+    /// </summary>
     [HttpGet("queue-depths")]
     public IActionResult GetQueueDepths()
     {
@@ -33,6 +36,10 @@ public class DashboardController : ControllerBase
         return Ok(new QueueDepthsResponse(items, total));
     }
 
+    /// <summary>
+    /// Returns P50 and P95 document processing-time percentiles for the given date range.
+    /// Defaults to the last 30 days when no range is specified.
+    /// </summary>
     [HttpGet("processing-times")]
     public IActionResult GetProcessingTimes(
         [FromQuery] DateTime? from,
@@ -46,6 +53,10 @@ public class DashboardController : ControllerBase
         return Ok(new ProcessingTimesResponse(result.P50, result.P95, result.SampleCount, rangeFrom, rangeTo));
     }
 
+    /// <summary>
+    /// Returns failed-document counts and the computed error-rate percentage for the given date range.
+    /// Defaults to the last 30 days when no range is specified.
+    /// </summary>
     [HttpGet("error-rates")]
     public IActionResult GetErrorRates(
         [FromQuery] DateTime? from,
@@ -56,6 +67,7 @@ public class DashboardController : ControllerBase
 
         var result = new FindErrorRatesQuery(_tenant.TenantId, rangeFrom, rangeTo).Execute();
 
+        // Avoid division by zero when no documents have been processed yet.
         var errorRate = result.Total > 0
             ? Math.Round((decimal)result.Failed / result.Total * 100, 2)
             : 0m;
@@ -63,6 +75,10 @@ public class DashboardController : ControllerBase
         return Ok(new ErrorRatesResponse(result.Total, result.Failed, errorRate, rangeFrom, rangeTo));
     }
 
+    /// <summary>
+    /// Returns token consumption and request counts broken down by LLM model for the given date range.
+    /// Defaults to the last 30 days when no range is specified.
+    /// </summary>
     [HttpGet("llm-costs")]
     public IActionResult GetLlmCosts(
         [FromQuery] DateTime? from,
@@ -84,6 +100,10 @@ public class DashboardController : ControllerBase
         return Ok(new LlmCostsResponse(items, grandInputTokens, grandOutputTokens, rangeFrom, rangeTo));
     }
 
+    /// <summary>
+    /// Returns daily document-ingestion volumes for the given date range.
+    /// Defaults to the last 30 days when no range is specified.
+    /// </summary>
     [HttpGet("volumes")]
     public IActionResult GetVolumes(
         [FromQuery] DateTime? from,
@@ -104,6 +124,11 @@ public class DashboardController : ControllerBase
         return Ok(new TenantVolumesResponse(items, total, rangeFrom, rangeTo));
     }
 
+    /// <summary>
+    /// Resolves optional from/to query parameters, applying a 30-day default window and
+    /// validating that <paramref name="from"/> is strictly earlier than <paramref name="to"/>.
+    /// Returns a 400 error result in the third tuple element when validation fails.
+    /// </summary>
     private (DateTime from, DateTime to, IActionResult error) ResolveRange(DateTime? from, DateTime? to)
     {
         var rangeFrom = from ?? DateTime.UtcNow.AddDays(-30);

@@ -18,6 +18,20 @@ public class DocumentsController : ControllerBase
     private readonly ITenantContext _tenant;
     private readonly ILogger<DocumentsController> _logger;
 
+    // Permitted MIME types for document ingestion; "application/octet-stream" is accepted as
+    // a fallback for clients that cannot determine a more specific content type.
+    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text/xml", "application/xml",
+        "application/pdf",
+        "image/jpeg", "image/png", "image/tiff", "image/heic", "image/webp",
+        "application/json",
+        "text/csv",
+        "application/octet-stream"
+    };
+
+    private const int MaxBatchFiles = 20;
+
     public DocumentsController(
         IDocumentService documentService,
         IStorageService storageService,
@@ -32,19 +46,11 @@ public class DocumentsController : ControllerBase
         _logger = logger;
     }
 
-
-    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "text/xml", "application/xml",
-        "application/pdf",
-        "image/jpeg", "image/png", "image/tiff", "image/heic", "image/webp",
-        "application/json",
-        "text/csv",
-        "application/octet-stream"
-    };
-
-    private const int MaxBatchFiles = 20;
-
+    /// <summary>
+    /// Accepts up to 20 files in a single multipart request and ingests each one individually.
+    /// Per-file validation failures do not abort the remaining files; the response uses
+    /// HTTP 202 when all files succeed, or HTTP 207 Multi-Status when at least one fails.
+    /// </summary>
     [HttpPost("batch")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(209_715_200)]
@@ -80,6 +86,8 @@ public class DocumentsController : ControllerBase
         for (var i = 0; i < files.Count; i++)
         {
             var file = files[i];
+            // Append the file index to the external ref so each ingested document can be
+            // correlated back to the specific item in this batch.
             var fileExternalRef = externalRef != null ? $"{externalRef}:{i}" : null;
 
             if (file == null || file.Length == 0)
@@ -139,11 +147,17 @@ public class DocumentsController : ControllerBase
         var succeeded = results.Count(r => r.Error == null);
         var failed = results.Count(r => r.Error != null);
         var response = new BatchUploadResponse(results.AsReadOnly(), files.Count, succeeded, failed);
+
+        // Use 207 Multi-Status only when there is a partial failure; pure success uses 202.
         var statusCode = failed == 0 ? StatusCodes.Status202Accepted : StatusCodes.Status207MultiStatus;
 
         return new ObjectResult(response) { StatusCode = statusCode };
     }
 
+    /// <summary>
+    /// Accepts a single file and queues it for processing.
+    /// Returns HTTP 202 Accepted with a document reference once ingestion is confirmed.
+    /// </summary>
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(52_428_800)]
@@ -206,6 +220,9 @@ public class DocumentsController : ControllerBase
         return new ObjectResult(response) { StatusCode = result.StatusCode };
     }
 
+    /// <summary>
+    /// Returns the full detail of a single document by its internal ID.
+    /// </summary>
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(long id, CancellationToken ct)
     {
@@ -217,6 +234,10 @@ public class DocumentsController : ControllerBase
         return Ok(DocumentResponse.FromEntity(result.Data, _workflow));
     }
 
+    /// <summary>
+    /// Returns a paginated list of documents, optionally filtered by status, full-text search,
+    /// and date range. Defaults to page 1 with 20 items per page.
+    /// </summary>
     [HttpGet]
     public async Task<IActionResult> List(
         [FromQuery] string status,
@@ -241,6 +262,10 @@ public class DocumentsController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Streams the original uploaded file directly from S3 as an inline response.
+    /// Sets Content-Disposition and X-Content-Type-Options headers for safe browser handling.
+    /// </summary>
     [HttpGet("{id:long}/raw")]
     public async Task<IActionResult> DownloadRaw(long id, CancellationToken ct)
     {
@@ -258,6 +283,9 @@ public class DocumentsController : ControllerBase
         return File(stream, contentType);
     }
 
+    /// <summary>
+    /// Re-queues a previously failed document for processing.
+    /// </summary>
     [HttpPost("{id:long}/retry")]
     public async Task<IActionResult> Retry(long id, CancellationToken ct)
     {
@@ -269,6 +297,10 @@ public class DocumentsController : ControllerBase
         return Ok(DocumentResponse.FromEntity(result.Data, _workflow));
     }
 
+    /// <summary>
+    /// Resolves a document that is pending human review by applying the specified action
+    /// (approve/reject) and an optional corrected canonical output.
+    /// </summary>
     [HttpPost("{id:long}/resolve")]
     public async Task<IActionResult> Resolve(long id, [FromBody] ResolveDocumentRequest request, CancellationToken ct)
     {
@@ -280,6 +312,10 @@ public class DocumentsController : ControllerBase
         return Ok(DocumentResponse.FromEntity(result.Data, _workflow));
     }
 
+    /// <summary>
+    /// Patches the canonical (structured) output JSON of an existing document without
+    /// changing its processing status.
+    /// </summary>
     [HttpPatch("{id:long}/canonical-output")]
     public async Task<IActionResult> UpdateCanonicalOutput(long id, [FromBody] UpdateCanonicalOutputRequest request, CancellationToken ct)
     {

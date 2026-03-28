@@ -18,6 +18,12 @@ public class AuthController : ControllerBase
     private readonly ITenantContext _tenant;
     private readonly JwtSettings _jwtSettings;
 
+    // In-process rate limiter for magic-link send requests, keyed by client IP.
+    // Each entry tracks the request count and the start of the current 15-minute window.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _magicLinkRateLimit = new();
+    private const int MagicLinkMaxPerWindow = 5;
+    private static readonly TimeSpan MagicLinkWindow = TimeSpan.FromMinutes(15);
+
     public AuthController(IAuthService authService, ITenantContext tenant, IOptions<JwtSettings> jwtSettings)
     {
         _authService = authService;
@@ -25,6 +31,10 @@ public class AuthController : ControllerBase
         _jwtSettings = jwtSettings.Value;
     }
 
+    /// <summary>
+    /// Authenticates a user with email and password credentials.
+    /// On success, sets an HttpOnly refresh-token cookie and returns a JWT access token.
+    /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
@@ -55,6 +65,10 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Authenticates a user via a Google ID token (OAuth2 credential).
+    /// On success, sets an HttpOnly refresh-token cookie and returns a JWT access token.
+    /// </summary>
     [HttpPost("google")]
     [AllowAnonymous]
     public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request)
@@ -85,6 +99,10 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Registers a new tenant (company) together with its first admin user.
+    /// Applies password complexity rules and returns a 201 with the generated API key on success.
+    /// </summary>
     [HttpPost("signup")]
     [AllowAnonymous]
     public async Task<IActionResult> Signup([FromBody] SignupRequest request)
@@ -101,6 +119,7 @@ public class AuthController : ControllerBase
             });
         }
 
+        // Enforce minimum password complexity: length + upper + lower + digit.
         if (request.Password.Length < 10 ||
             !request.Password.Any(char.IsUpper) ||
             !request.Password.Any(char.IsLower) ||
@@ -140,6 +159,10 @@ public class AuthController : ControllerBase
         return new ObjectResult(response) { StatusCode = StatusCodes.Status201Created };
     }
 
+    /// <summary>
+    /// Registers an additional user within the caller's tenant.
+    /// Only administrators may invoke this endpoint.
+    /// </summary>
     [HttpPost("register")]
     [Authorize]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
@@ -167,6 +190,7 @@ public class AuthController : ControllerBase
             });
         }
 
+        // Enforce minimum password complexity: length + upper + lower + digit.
         if (request.Password.Length < 10 ||
             !request.Password.Any(char.IsUpper) ||
             !request.Password.Any(char.IsLower) ||
@@ -190,6 +214,10 @@ public class AuthController : ControllerBase
         return new ObjectResult(response) { StatusCode = StatusCodes.Status201Created };
     }
 
+    /// <summary>
+    /// Issues a new JWT access token using the refresh token stored in the HttpOnly cookie.
+    /// Rotates the refresh token on every successful call.
+    /// </summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
     public async Task<IActionResult> Refresh()
@@ -211,6 +239,7 @@ public class AuthController : ControllerBase
 
         if (!result.IsSuccess)
         {
+            // Clear a stale or invalid cookie so the browser does not keep retrying.
             RefreshTokenCookieHelper.ClearRefreshTokenCookie(Response);
             return result.ToActionResult();
         }
@@ -225,10 +254,15 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Revokes all active refresh tokens for the authenticated user and clears the cookie.
+    /// Effectively logs the user out from all sessions.
+    /// </summary>
     [HttpPost("revoke")]
     [Authorize]
     public async Task<IActionResult> Revoke()
     {
+        // Prefer the standard JWT sub claim; fall back to the ASP.NET identity claim.
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)
                           ?? User.FindFirst(ClaimTypes.NameIdentifier);
 
@@ -243,10 +277,10 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (int Count, DateTime WindowStart)> _magicLinkRateLimit = new();
-    private const int MagicLinkMaxPerWindow = 5;
-    private static readonly TimeSpan MagicLinkWindow = TimeSpan.FromMinutes(15);
-
+    /// <summary>
+    /// Sends a one-time magic-link sign-in email to the specified address.
+    /// Applies an in-process per-IP rate limit of 5 requests per 15 minutes.
+    /// </summary>
     [HttpPost("magic-link/send")]
     [AllowAnonymous]
     public async Task<IActionResult> SendMagicLink([FromBody] MagicLinkSendRequest request)
@@ -264,11 +298,14 @@ public class AuthController : ControllerBase
 
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         var now = DateTime.UtcNow;
+
+        // AddOrUpdate is atomic: reset the window when it has expired, otherwise increment.
         var entry = _magicLinkRateLimit.AddOrUpdate(ipAddress,
             _ => (1, now),
             (_, existing) => existing.WindowStart.Add(MagicLinkWindow) < now
                 ? (1, now)
                 : (existing.Count + 1, existing.WindowStart));
+
         if (entry.Count > MagicLinkMaxPerWindow)
         {
             return StatusCode(StatusCodes.Status429TooManyRequests, new ProblemDetails
@@ -288,6 +325,9 @@ public class AuthController : ControllerBase
         return Ok(new MessageResponse(result.Data));
     }
 
+    /// <summary>
+    /// Verifies a magic-link token and, on success, issues a JWT access token and refresh-token cookie.
+    /// </summary>
     [HttpPost("magic-link/verify")]
     [AllowAnonymous]
     public async Task<IActionResult> VerifyMagicLink([FromBody] MagicLinkVerifyRequest request)
@@ -318,10 +358,14 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Returns the profile of the currently authenticated user.
+    /// </summary>
     [HttpGet("me")]
     [Authorize]
     public async Task<IActionResult> Me()
     {
+        // Prefer the standard JWT sub claim; fall back to the ASP.NET identity claim.
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)
                           ?? User.FindFirst(ClaimTypes.NameIdentifier);
 

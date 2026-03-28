@@ -7,14 +7,21 @@ namespace Conspectare.Services.Queries;
 public class FindMonthlyUsageSummaryQuery(long tenantId, DateTime from, DateTime to)
     : NHibernateConspectareQuery<IList<MonthlyUsageSummary>>
 {
+    /// <summary>
+    /// Returns usage metrics aggregated by calendar month for the specified tenant and date range.
+    /// Daily rows are fetched from the database and then grouped in-process to produce monthly totals,
+    /// avoiding a database-specific date-truncation function.
+    /// </summary>
     protected override IList<MonthlyUsageSummary> OnExecute()
     {
+        // Load all daily snapshots within the range; grouping is done in-process below.
         var dailyRows = Session.QueryOver<UsageDaily>()
             .Where(u => u.TenantId == tenantId)
             .And(u => u.UsageDate >= from.Date)
             .And(u => u.UsageDate <= to.Date)
             .List();
 
+        // Group by year+month and sum every metric across the constituent days.
         return dailyRows
             .GroupBy(u => new { u.UsageDate.Year, u.UsageDate.Month })
             .Select(g => new MonthlyUsageSummary

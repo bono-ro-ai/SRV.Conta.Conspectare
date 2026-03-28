@@ -7,12 +7,17 @@ namespace Conspectare.Services.Queries;
 public class FindErrorRatesQuery(long tenantId, DateTime from, DateTime to)
     : NHibernateConspectareQuery<ErrorRatesResult>
 {
+    // Both terminal failure statuses are treated as errors for rate calculation.
     private static readonly string[] FailedStatuses =
     {
         DocumentStatus.Failed,
         DocumentStatus.ExtractionFailed
     };
 
+    /// <summary>
+    /// Returns the total document count and the failed document count for the specified tenant
+    /// within the given date range, enabling error-rate calculation by the caller.
+    /// </summary>
     protected override ErrorRatesResult OnExecute()
     {
         var total = Session.QueryOver<Document>()

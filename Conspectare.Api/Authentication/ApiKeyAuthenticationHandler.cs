@@ -12,6 +12,13 @@ using ILoggerFactory = Microsoft.Extensions.Logging.ILoggerFactory;
 
 namespace Conspectare.Api.Authentication;
 
+/// <summary>
+/// Handles authentication for requests that present a plain API key as a Bearer token.
+/// Looks up the client by the first 8-character prefix, then verifies the full key using
+/// a constant-time SHA-256 hash comparison to prevent timing attacks.
+/// On success, populates <see cref="ITenantContext"/> so downstream middleware and controllers
+/// have access to tenant metadata without re-querying the database.
+/// </summary>
 public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     private readonly ISessionFactory _sessionFactory;
@@ -29,6 +36,12 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
         _tenantContext = tenantContext;
     }
 
+    /// <summary>
+    /// Attempts to authenticate the request using an API key extracted from the
+    /// <c>Authorization: Bearer &lt;key&gt;</c> header.
+    /// Returns <see cref="AuthenticateResult.NoResult"/> when the header is absent or
+    /// the token looks like a JWT (contains a dot), deferring to the JWT handler.
+    /// </summary>
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var authHeader = Request.Headers.Authorization.ToString();
@@ -40,6 +53,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
 
         var rawApiKey = authHeader["Bearer ".Length..].Trim();
 
+        // A dot in the token indicates a JWT; let the JWT handler take over.
         if (rawApiKey.Contains('.'))
         {
             return AuthenticateResult.NoResult();
@@ -50,6 +64,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
             return AuthenticateResult.Fail("Invalid API key format.");
         }
 
+        // The first 8 characters are the publicly visible prefix used to locate the record.
         var prefix = rawApiKey[..8];
 
         ApiClient apiClient;
@@ -65,6 +80,7 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
             return AuthenticateResult.Fail("Invalid API key.");
         }
 
+        // Hash the supplied key and compare using FixedTimeEquals to prevent timing side-channels.
         var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawApiKey));
         var hashHex = Convert.ToHexStringLower(hashBytes);
 
@@ -81,6 +97,8 @@ public class ApiKeyAuthenticationHandler : AuthenticationHandler<AuthenticationS
             return AuthenticateResult.Fail("API client is inactive.");
         }
 
+        // Populate the ambient tenant context so the rest of the pipeline can read it
+        // without issuing additional database queries.
         _tenantContext.TenantId = apiClient.Id;
         _tenantContext.ApiKeyPrefix = apiClient.ApiKeyPrefix;
         _tenantContext.RateLimitPerMin = apiClient.RateLimitPerMin;

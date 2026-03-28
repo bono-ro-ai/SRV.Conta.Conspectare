@@ -11,19 +11,35 @@ using Conspectare.Services.Models;
 using Conspectare.Services.Observability;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 namespace Conspectare.Infrastructure.Llm.Claude;
+
+/// <summary>
+/// HTTP client for the Anthropic Claude Messages API.
+/// Implements <see cref="ILlmApiClient"/> using Claude's tool-use feature to enforce
+/// structured JSON output for both triage (document classification) and data extraction.
+/// </summary>
 public class ClaudeApiClient : ILlmApiClient
 {
+    // The anthropic-version header value required by all Claude API requests.
     private const string AnthropicVersion = "2023-06-01";
+
+    // Snake_case serialisation matches the Claude API wire format.
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
         WriteIndented = false
     };
+
     private readonly HttpClient _httpClient;
     private readonly ClaudeApiSettings _settings;
     private readonly ILogger<ClaudeApiClient> _logger;
     private readonly ConspectareMetrics _metrics;
+
+    /// <summary>
+    /// Initialises the client and configures the underlying <see cref="HttpClient"/>
+    /// with the base address, timeout, and required Anthropic authentication headers.
+    /// </summary>
     public ClaudeApiClient(
         HttpClient httpClient,
         IOptions<ClaudeApiSettings> options,
@@ -34,34 +50,50 @@ public class ClaudeApiClient : ILlmApiClient
         _settings = options.Value;
         _logger = logger;
         _metrics = metrics;
+
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds);
         _httpClient.DefaultRequestHeaders.Add("x-api-key", _settings.ApiKey);
         _httpClient.DefaultRequestHeaders.Add("anthropic-version", AnthropicVersion);
     }
+
+    /// <summary>
+    /// Sends the document to Claude and returns a triage classification result.
+    /// The model is forced to call the <c>classify_document</c> tool, ensuring
+    /// a structured JSON response with document type, confidence, and relevance flag.
+    /// </summary>
     public async Task<TriageResult> TriageAsync(
         Document doc, Stream rawFile, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
+
         var contentBlocks = await BuildContentBlocksAsync(doc, rawFile, ct);
+
+        // Prepend the prompt text as the first content block so the model sees
+        // instructions before the document content.
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
             ["text"] = promptText
         });
+
         var tool = BuildTriageTool();
         var requestBody = BuildRequestBody(contentBlocks, new[] { tool }, "classify_document");
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
+
         var (toolInput, usage) = ParseToolUseResponse(response, "classify_document");
+
         _metrics.RecordLlmCallDuration("claude", PipelinePhase.Triage, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "output", usage.OutputTokens.Value);
+
         var documentType = toolInput["document_type"]?.GetValue<string>() ?? "unknown";
         var confidence = toolInput["confidence"]?.GetValue<decimal>() ?? 0m;
         var isAccountingRelevant = toolInput["is_accounting_relevant"]?.GetValue<bool>() ?? false;
+
         return new TriageResult(
             DocumentType: documentType,
             Confidence: confidence,
@@ -72,28 +104,43 @@ public class ClaudeApiClient : ILlmApiClient
             OutputTokens: usage.OutputTokens,
             LatencyMs: (int)sw.ElapsedMilliseconds);
     }
+
+    /// <summary>
+    /// Sends the document to Claude and returns a structured data extraction result.
+    /// The model is forced to call the <c>extract_invoice_data</c> tool, returning
+    /// all invoice fields plus any review flags raised by the model.
+    /// </summary>
     public async Task<ExtractionResult> ExtractAsync(
         Document doc, Stream rawFile, string documentType, string promptText, string promptVersion, CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
+
         var contentBlocks = await BuildContentBlocksAsync(doc, rawFile, ct);
+
+        // Prepend the prompt text before document content, same as in TriageAsync.
         contentBlocks.Insert(0, new JsonObject
         {
             ["type"] = "text",
             ["text"] = promptText
         });
+
         var tool = BuildExtractionTool();
         var requestBody = BuildRequestBody(contentBlocks, new[] { tool }, "extract_invoice_data");
         var response = await SendWithRetryAsync(requestBody, ct);
         sw.Stop();
+
         var (toolInput, usage) = ParseToolUseResponse(response, "extract_invoice_data");
+
         _metrics.RecordLlmCallDuration("claude", PipelinePhase.Extraction, sw.ElapsedMilliseconds);
         if (usage.InputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "input", usage.InputTokens.Value);
         if (usage.OutputTokens.HasValue)
             _metrics.RecordLlmTokens("claude", "output", usage.OutputTokens.Value);
+
         var outputJson = toolInput.ToJsonString(JsonOptions);
         var schemaVersion = "1.0.0";
+
+        // Map the model's review_flags array into typed ReviewFlagInfo records.
         var reviewFlags = new List<ReviewFlagInfo>();
         if (toolInput["review_flags"] is JsonArray flagsArray)
         {
@@ -108,6 +155,7 @@ public class ClaudeApiClient : ILlmApiClient
                 }
             }
         }
+
         return new ExtractionResult(
             OutputJson: outputJson,
             SchemaVersion: schemaVersion,
@@ -118,16 +166,24 @@ public class ClaudeApiClient : ILlmApiClient
             LatencyMs: (int)sw.ElapsedMilliseconds,
             ReviewFlags: reviewFlags);
     }
+
+    /// <summary>
+    /// Reads the raw file stream and converts it into the appropriate Claude content block(s).
+    /// PDFs are sent as base64-encoded document blocks; images as base64 image blocks;
+    /// all other content types are read as plain text blocks.
+    /// </summary>
     private async Task<List<JsonObject>> BuildContentBlocksAsync(
         Document doc, Stream rawFile, CancellationToken ct)
     {
         var blocks = new List<JsonObject>();
         var contentType = doc.ContentType?.ToLowerInvariant() ?? "";
+
         if (contentType == "application/pdf")
         {
             using var ms = new MemoryStream();
             await rawFile.CopyToAsync(ms, ct);
             var base64 = Convert.ToBase64String(ms.ToArray());
+
             blocks.Add(new JsonObject
             {
                 ["type"] = "document",
@@ -144,6 +200,8 @@ public class ClaudeApiClient : ILlmApiClient
             using var ms = new MemoryStream();
             await rawFile.CopyToAsync(ms, ct);
             var base64 = Convert.ToBase64String(ms.ToArray());
+
+            // Fall back to image/jpeg for any unrecognised image sub-type.
             var mediaType = contentType switch
             {
                 "image/jpeg" => "image/jpeg",
@@ -152,6 +210,7 @@ public class ClaudeApiClient : ILlmApiClient
                 "image/webp" => "image/webp",
                 _ => "image/jpeg"
             };
+
             blocks.Add(new JsonObject
             {
                 ["type"] = "image",
@@ -165,16 +224,24 @@ public class ClaudeApiClient : ILlmApiClient
         }
         else
         {
+            // Plain text fallback — leaveOpen so the caller's stream remains usable.
             using var reader = new StreamReader(rawFile, leaveOpen: true);
             var text = await reader.ReadToEndAsync(ct);
+
             blocks.Add(new JsonObject
             {
                 ["type"] = "text",
                 ["text"] = text
             });
         }
+
         return blocks;
     }
+
+    /// <summary>
+    /// Assembles the Claude Messages API request body with the provided content blocks,
+    /// tool definitions, and a forced tool choice so the model must call the specified tool.
+    /// </summary>
     private JsonObject BuildRequestBody(
         List<JsonObject> contentBlocks, JsonObject[] tools, string forcedToolName)
     {
@@ -183,16 +250,20 @@ public class ClaudeApiClient : ILlmApiClient
             new JsonObject
             {
                 ["role"] = "user",
+                // Wrap the content blocks into a JsonArray of JsonNode to satisfy the API shape.
                 ["content"] = new JsonArray(contentBlocks.Select(b => (JsonNode)b).ToArray())
             }
         };
+
         var toolsArray = new JsonArray(tools.Select(t => (JsonNode)t).ToArray());
+
         return new JsonObject
         {
             ["model"] = _settings.Model,
             ["max_tokens"] = _settings.MaxTokens,
             ["messages"] = messagesArray,
             ["tools"] = toolsArray,
+            // "tool" mode with an explicit name forces the model to call exactly that tool.
             ["tool_choice"] = new JsonObject
             {
                 ["type"] = "tool",
@@ -200,15 +271,24 @@ public class ClaudeApiClient : ILlmApiClient
             }
         };
     }
+
+    /// <summary>
+    /// Posts the request body to the Claude Messages endpoint, retrying on rate-limit (429)
+    /// or service-unavailable (503) responses with an exponential back-off delay.
+    /// Throws <see cref="TimeoutException"/> when the HTTP client times out,
+    /// and <see cref="HttpRequestException"/> for non-retryable error responses.
+    /// </summary>
     internal async Task<JsonObject> SendWithRetryAsync(JsonObject requestBody, CancellationToken ct)
     {
         var maxRetries = _settings.MaxRetries;
+
         for (var attempt = 0; attempt <= maxRetries; attempt++)
         {
             using var content = new StringContent(
                 requestBody.ToJsonString(JsonOptions),
                 Encoding.UTF8,
                 new MediaTypeHeaderValue("application/json"));
+
             HttpResponseMessage response;
             try
             {
@@ -216,17 +296,21 @@ public class ClaudeApiClient : ILlmApiClient
             }
             catch (TaskCanceledException) when (!ct.IsCancellationRequested)
             {
+                // TaskCanceledException without a cancelled token means the HttpClient timed out.
                 throw new TimeoutException(
                     $"Claude API request timed out after {_settings.TimeoutSeconds} seconds");
             }
+
             if (response.IsSuccessStatusCode)
             {
                 var responseJson = await response.Content.ReadAsStringAsync(ct);
                 return JsonNode.Parse(responseJson)?.AsObject()
                        ?? throw new InvalidOperationException("Claude API returned empty response");
             }
+
             var statusCode = (int)response.StatusCode;
             var isRetryable = statusCode == 429 || statusCode == 503;
+
             if (!isRetryable || attempt >= maxRetries)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
@@ -235,19 +319,30 @@ public class ClaudeApiClient : ILlmApiClient
                     null,
                     response.StatusCode);
             }
+
+            // Back-off schedule: 5 s → 15 s → 30 s for subsequent retries.
             var delaySeconds = attempt switch { 0 => 5, 1 => 15, _ => 30 };
             _logger.LogWarning(
                 "Claude API returned {StatusCode}, retrying in {Delay}s (attempt {Attempt}/{MaxRetries})",
                 statusCode, delaySeconds, attempt + 1, maxRetries);
+
             await Task.Delay(TimeSpan.FromSeconds(delaySeconds), ct);
         }
+
         throw new InvalidOperationException("Exhausted all retry attempts");
     }
+
+    /// <summary>
+    /// Locates the <c>tool_use</c> block with the given tool name in the API response content array
+    /// and returns its parsed input object alongside token usage metadata.
+    /// Throws <see cref="InvalidOperationException"/> if the expected block is absent.
+    /// </summary>
     private static (JsonObject ToolInput, UsageInfo Usage) ParseToolUseResponse(
         JsonObject response, string expectedToolName)
     {
         var contentArray = response["content"]?.AsArray()
             ?? throw new InvalidOperationException("Claude API response missing 'content' array");
+
         JsonObject toolInput = null;
         foreach (var block in contentArray)
         {
@@ -258,16 +353,24 @@ public class ClaudeApiClient : ILlmApiClient
                 break;
             }
         }
+
         if (toolInput == null)
         {
             throw new InvalidOperationException(
                 $"Claude API response did not contain expected tool_use block '{expectedToolName}'");
         }
+
         var usage = response["usage"]?.AsObject();
         var inputTokens = usage?["input_tokens"]?.GetValue<int>();
         var outputTokens = usage?["output_tokens"]?.GetValue<int>();
+
         return (toolInput, new UsageInfo(inputTokens, outputTokens));
     }
+
+    /// <summary>
+    /// Builds the Claude tool definition for the <c>classify_document</c> function,
+    /// which forces the model to output document type, confidence score, and accounting relevance.
+    /// </summary>
     private static JsonObject BuildTriageTool()
     {
         return new JsonObject
@@ -303,6 +406,12 @@ public class ClaudeApiClient : ILlmApiClient
             }
         };
     }
+
+    /// <summary>
+    /// Builds the Claude tool definition for the <c>extract_invoice_data</c> function,
+    /// covering the full canonical invoice schema (supplier, customer, line items, totals,
+    /// VAT, payment details) plus a <c>review_flags</c> array for data quality signals.
+    /// </summary>
     private static JsonObject BuildExtractionTool()
     {
         return new JsonObject
@@ -390,5 +499,7 @@ public class ClaudeApiClient : ILlmApiClient
             }
         };
     }
+
+    /// <summary>Token usage counters returned by the Claude API usage object.</summary>
     internal record UsageInfo(int? InputTokens, int? OutputTokens);
 }

@@ -7,8 +7,16 @@ namespace Conspectare.Services.Queries;
 public class AggregateUsageForTenantQuery(long tenantId, DateTime dateUtc)
     : NHibernateConspectareQuery<UsageAggregateResult>
 {
+    /// <summary>
+    /// Computes a full usage aggregate for the specified tenant on the calendar day that contains
+    /// <paramref name="dateUtc"/>. The result is used to populate the daily usage snapshot record.
+    /// Four separate queries are issued — documents ingested, documents processed, LLM token sums,
+    /// and storage bytes — because NHibernate QueryOver does not support cross-entity aggregation
+    /// in a single query.
+    /// </summary>
     protected override UsageAggregateResult OnExecute()
     {
+        // Normalize to midnight boundaries so the window covers exactly one calendar day.
         var dayStart = dateUtc.Date;
         var dayEnd = dayStart.AddDays(1);
 
@@ -24,6 +32,7 @@ public class AggregateUsageForTenantQuery(long tenantId, DateTime dateUtc)
             .And(d => d.CompletedAt < dayEnd)
             .RowCount();
 
+        // NHibernate alias trick: a null local is used purely to capture property names for projection aliases.
         ExtractionTokenResult tokenResult = null;
         var tokenRows = Session.QueryOver<ExtractionAttempt>()
             .Where(a => a.TenantId == tenantId)
@@ -35,6 +44,8 @@ public class AggregateUsageForTenantQuery(long tenantId, DateTime dateUtc)
                 .SelectCount(a => a.Id).WithAlias(() => tokenResult.RequestCount))
             .TransformUsing(NHibernate.Transform.Transformers.AliasToBean<ExtractionTokenResult>())
             .List<ExtractionTokenResult>();
+
+        // The projection always returns exactly one row (even with zero attempts); guard against null anyway.
         var tokens = tokenRows.FirstOrDefault() ?? new ExtractionTokenResult();
 
         var storageBytes = Session.QueryOver<DocumentArtifact>()

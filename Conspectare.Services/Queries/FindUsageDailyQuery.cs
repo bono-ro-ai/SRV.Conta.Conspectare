@@ -6,6 +6,11 @@ namespace Conspectare.Services.Queries;
 public class FindUsageDailyQuery(long tenantId, DateTime from, DateTime to)
     : NHibernateConspectareQuery<IList<UsageDaily>>
 {
+    /// <summary>
+    /// Returns daily usage snapshot rows for the specified tenant within the given date range,
+    /// ordered chronologically. The <c>.Date</c> normalization on the bounds strips any
+    /// time component so comparisons are always against midnight boundaries.
+    /// </summary>
     protected override IList<UsageDaily> OnExecute()
     {
         return Session.QueryOver<UsageDaily>()
