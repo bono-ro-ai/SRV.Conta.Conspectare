@@ -1,5 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Conspectare.Api.DTOs;
 using Conspectare.Api.Extensions;
 using Conspectare.Services.Configuration;
@@ -17,6 +20,10 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly ITenantContext _tenant;
     private readonly JwtSettings _jwtSettings;
+    private readonly GoogleAuthSettings _googleSettings;
+    private readonly AppSettings _appSettings;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<AuthController> _logger;
 
     // In-process rate limiter for magic-link send requests, keyed by client IP.
     // Each entry tracks the request count and the start of the current 15-minute window.
@@ -24,11 +31,24 @@ public class AuthController : ControllerBase
     private const int MagicLinkMaxPerWindow = 5;
     private static readonly TimeSpan MagicLinkWindow = TimeSpan.FromMinutes(15);
 
-    public AuthController(IAuthService authService, ITenantContext tenant, IOptions<JwtSettings> jwtSettings)
+    private static readonly TimeSpan OAuthStateMaxAge = TimeSpan.FromMinutes(10);
+
+    public AuthController(
+        IAuthService authService,
+        ITenantContext tenant,
+        IOptions<JwtSettings> jwtSettings,
+        IOptions<GoogleAuthSettings> googleSettings,
+        IOptions<AppSettings> appSettings,
+        IHttpClientFactory httpClientFactory,
+        ILogger<AuthController> logger)
     {
         _authService = authService;
         _tenant = tenant;
         _jwtSettings = jwtSettings.Value;
+        _googleSettings = googleSettings.Value;
+        _appSettings = appSettings.Value;
+        _httpClientFactory = httpClientFactory;
+        _logger = logger;
     }
 
     /// <summary>
@@ -97,6 +117,158 @@ public class AuthController : ControllerBase
             new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role, result.Data.User.AvatarUrl));
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Initiates the Google OAuth 2.0 Authorization Code flow by redirecting to Google's consent screen.
+    /// Uses an HMAC-signed state token for CSRF protection (stateless, works cross-origin).
+    /// </summary>
+    [HttpGet("google/redirect")]
+    [AllowAnonymous]
+    public IActionResult GoogleRedirect()
+    {
+        var state = GenerateOAuthState();
+        var redirectUri = BuildGoogleCallbackUri();
+
+        var googleUrl = "https://accounts.google.com/o/oauth2/v2/auth" +
+            $"?client_id={Uri.EscapeDataString(_googleSettings.ClientId)}" +
+            $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+            "&response_type=code" +
+            "&scope=openid%20profile%20email" +
+            $"&state={Uri.EscapeDataString(state)}";
+
+        return Redirect(googleUrl);
+    }
+
+    /// <summary>
+    /// Exchanges a Google authorization code for tokens and authenticates the user.
+    /// Validates the HMAC-signed state token for CSRF protection.
+    /// </summary>
+    [HttpPost("google/callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GoogleCallback([FromBody] GoogleCallbackRequest request, CancellationToken cancellationToken)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.State))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Code and state are required."
+            });
+        }
+
+        if (!ValidateOAuthState(request.State))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Invalid OAuth state. Please try signing in again."
+            });
+        }
+
+        var redirectUri = BuildGoogleCallbackUri();
+
+        var httpClient = _httpClientFactory.CreateClient();
+        var tokenResponse = await httpClient.PostAsync("https://oauth2.googleapis.com/token",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["code"] = request.Code,
+                ["client_id"] = _googleSettings.ClientId,
+                ["client_secret"] = _googleSettings.ClientSecret,
+                ["redirect_uri"] = redirectUri,
+                ["grant_type"] = "authorization_code"
+            }), cancellationToken);
+
+        if (!tokenResponse.IsSuccessStatusCode)
+        {
+            var errorBody = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogWarning("Google token exchange failed ({Status}): {Body}", (int)tokenResponse.StatusCode, errorBody);
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Failed to exchange authorization code with Google."
+            });
+        }
+
+        var tokenJson = await tokenResponse.Content.ReadAsStringAsync(cancellationToken);
+        var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
+
+        if (!tokenData.TryGetProperty("id_token", out var idTokenElement))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Google did not return an ID token."
+            });
+        }
+
+        var idToken = idTokenElement.GetString()!;
+        var result = await _authService.GoogleLoginAsync(idToken);
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken, _jwtSettings.RefreshTokenExpirationDays);
+
+        var response = new AuthResponse(
+            result.Data.Token,
+            result.Data.ExpiresAt,
+            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role, result.Data.User.AvatarUrl));
+
+        return Ok(response);
+    }
+
+    private string BuildGoogleCallbackUri()
+    {
+        var frontendUrl = _appSettings.FrontendUrl.TrimEnd('/');
+        return $"{frontendUrl}/auth/google/callback";
+    }
+
+    /// <summary>
+    /// Generates an HMAC-signed OAuth state token: {nonce}.{timestamp}.{signature}.
+    /// Stateless CSRF protection that works cross-origin (no cookies needed).
+    /// </summary>
+    private string GenerateOAuthState()
+    {
+        var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        var payload = $"{nonce}.{timestamp}";
+        var signature = ComputeHmac(payload);
+        return $"{payload}.{signature}";
+    }
+
+    private bool ValidateOAuthState(string state)
+    {
+        var parts = state.Split('.', 3);
+        if (parts.Length != 3) return false;
+
+        var payload = $"{parts[0]}.{parts[1]}";
+        var expectedSignature = ComputeHmac(payload);
+
+        if (!CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(parts[2]),
+            Encoding.UTF8.GetBytes(expectedSignature)))
+            return false;
+
+        if (!long.TryParse(parts[1], out var timestamp)) return false;
+        var issued = DateTimeOffset.FromUnixTimeSeconds(timestamp);
+        return DateTimeOffset.UtcNow - issued < OAuthStateMaxAge;
+    }
+
+    private string ComputeHmac(string payload)
+    {
+        var keyBytes = Encoding.UTF8.GetBytes(_jwtSettings.Secret);
+        var payloadBytes = Encoding.UTF8.GetBytes(payload);
+        var hash = HMACSHA256.HashData(keyBytes, payloadBytes);
+        return Convert.ToBase64String(hash);
     }
 
     /// <summary>

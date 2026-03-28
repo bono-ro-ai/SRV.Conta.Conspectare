@@ -24,6 +24,8 @@ public record SignupResponse(
 
 public record GoogleLoginRequest(string Credential);
 
+public record GoogleCallbackRequest(string Code, string State);
+
 public record MagicLinkSendRequest(string Email);
 
 public record MagicLinkVerifyRequest(string Token);

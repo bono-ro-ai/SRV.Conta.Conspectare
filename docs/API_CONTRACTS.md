@@ -1,6 +1,6 @@
 # API Contracts
 
-Last updated: 2026-03-23
+Last updated: 2026-03-28
 
 ## API Surface Classification
 
@@ -428,6 +428,55 @@ Verify a magic link token and return JWT + refresh token.
 
 **Error Responses**:
 - `400 Bad Request` — Missing token, invalid/expired/already-used token
+
+### GET `/api/v1/auth/google/redirect`
+
+Initiates the Google OAuth 2.0 Authorization Code flow. Redirects the browser to Google's consent screen.
+
+**Behavior**:
+- Sets a `google_oauth_state` HttpOnly cookie (CSRF protection, 10-minute TTL)
+- Redirects to `accounts.google.com/o/oauth2/v2/auth` with `response_type=code`, `scope=openid profile email`
+- Google redirects back to `{FrontendUrl}/auth/google/callback?code=...&state=...`
+
+**Response**: `302 Redirect` to Google
+
+### POST `/api/v1/auth/google/callback`
+
+Exchanges a Google authorization code for tokens, validates the ID token, and authenticates the user.
+
+**Request** `application/json`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `code` | string | Yes | Authorization code from Google redirect |
+| `state` | string | Yes | CSRF state parameter from Google redirect |
+
+**Response** `200 OK`:
+```json
+{
+  "token": "eyJ...",
+  "expiresAt": "2026-03-28T10:15:00Z",
+  "user": {
+    "id": 1,
+    "email": "user@bono.ro",
+    "name": "User Name",
+    "role": "admin",
+    "avatarUrl": "https://..."
+  }
+}
+```
+
+**Behavior**:
+- Validates `state` against the `google_oauth_state` cookie
+- Exchanges `code` for tokens via `https://oauth2.googleapis.com/token`
+- Extracts and validates the `id_token` using Google's public keys
+- Delegates to the same user lookup/creation logic as `POST /api/v1/auth/google`
+- Sets refresh token HttpOnly cookie
+
+**Error Responses**:
+- `400 Bad Request` — Missing code/state, invalid state, code exchange failure
+- `401 Unauthorized` — Invalid Google token or unverified email
+- `403 Forbidden` — Email not in allowed domain or Google group
 
 ## Tenant Settings
 

@@ -48,7 +48,12 @@ public class AuthControllerTests : IDisposable
             Options.Create(new GoogleAuthSettings()),
             new Mock<IGoogleTokenValidator>().Object, new NoOpGoogleGroupChecker());
         _tenantContext = new MockTenantContext { TenantId = 1, IsAdmin = true, ApiKeyPrefix = "csp_test" };
-        _controller = new AuthController(_authService, _tenantContext, Options.Create(TestJwtSettings));
+        _controller = new AuthController(
+            _authService, _tenantContext, Options.Create(TestJwtSettings),
+            Options.Create(new GoogleAuthSettings { ClientId = "test-id", ClientSecret = "test-secret" }),
+            Options.Create(new AppSettings { FrontendUrl = "https://test.com" }),
+            new Mock<IHttpClientFactory>().Object,
+            NullLogger<AuthController>.Instance);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
