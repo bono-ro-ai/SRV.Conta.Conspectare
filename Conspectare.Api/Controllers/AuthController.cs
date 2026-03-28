@@ -1,5 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Conspectare.Api.DTOs;
 using Conspectare.Api.Extensions;
 using Conspectare.Services.Configuration;
@@ -17,6 +19,10 @@ public class AuthController : ControllerBase
     private readonly IAuthService _authService;
     private readonly ITenantContext _tenant;
     private readonly JwtSettings _jwtSettings;
+    private readonly GoogleAuthSettings _googleSettings;
+    private readonly AppSettings _appSettings;
+    private readonly IGoogleTokenValidator _googleTokenValidator;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     // In-process rate limiter for magic-link send requests, keyed by client IP.
     // Each entry tracks the request count and the start of the current 15-minute window.
@@ -24,11 +30,24 @@ public class AuthController : ControllerBase
     private const int MagicLinkMaxPerWindow = 5;
     private static readonly TimeSpan MagicLinkWindow = TimeSpan.FromMinutes(15);
 
-    public AuthController(IAuthService authService, ITenantContext tenant, IOptions<JwtSettings> jwtSettings)
+    private const string GoogleOAuthStateCookieName = "google_oauth_state";
+
+    public AuthController(
+        IAuthService authService,
+        ITenantContext tenant,
+        IOptions<JwtSettings> jwtSettings,
+        IOptions<GoogleAuthSettings> googleSettings,
+        IOptions<AppSettings> appSettings,
+        IGoogleTokenValidator googleTokenValidator,
+        IHttpClientFactory httpClientFactory)
     {
         _authService = authService;
         _tenant = tenant;
         _jwtSettings = jwtSettings.Value;
+        _googleSettings = googleSettings.Value;
+        _appSettings = appSettings.Value;
+        _googleTokenValidator = googleTokenValidator;
+        _httpClientFactory = httpClientFactory;
     }
 
     /// <summary>
@@ -85,6 +104,124 @@ public class AuthController : ControllerBase
         }
 
         var result = await _authService.GoogleLoginAsync(request.Credential);
+
+        if (!result.IsSuccess)
+            return result.ToActionResult();
+
+        RefreshTokenCookieHelper.SetRefreshTokenCookie(Response, result.Data.RawRefreshToken, _jwtSettings.RefreshTokenExpirationDays);
+
+        var response = new AuthResponse(
+            result.Data.Token,
+            result.Data.ExpiresAt,
+            new UserInfoResponse(result.Data.User.Id, result.Data.User.Email, result.Data.User.Name, result.Data.User.Role, result.Data.User.AvatarUrl));
+
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Initiates the Google OAuth 2.0 Authorization Code flow by redirecting to Google's consent screen.
+    /// Sets a CSRF state cookie and redirects the browser to accounts.google.com.
+    /// </summary>
+    [HttpGet("google/redirect")]
+    [AllowAnonymous]
+    public IActionResult GoogleRedirect()
+    {
+        var state = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var frontendUrl = _appSettings.FrontendUrl.TrimEnd('/');
+        var redirectUri = $"{frontendUrl}/auth/google/callback";
+
+        Response.Cookies.Append(GoogleOAuthStateCookieName, state, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Lax,
+            MaxAge = TimeSpan.FromMinutes(10),
+            Path = "/api/v1/auth"
+        });
+
+        var googleUrl = "https://accounts.google.com/o/oauth2/v2/auth" +
+            $"?client_id={Uri.EscapeDataString(_googleSettings.ClientId)}" +
+            $"&redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+            "&response_type=code" +
+            "&scope=openid%20profile%20email" +
+            $"&state={Uri.EscapeDataString(state)}";
+
+        return Redirect(googleUrl);
+    }
+
+    /// <summary>
+    /// Exchanges a Google authorization code for tokens and authenticates the user.
+    /// Validates the CSRF state parameter against the cookie set during redirect.
+    /// </summary>
+    [HttpPost("google/callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GoogleCallback([FromBody] GoogleCallbackRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.State))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Code and state are required."
+            });
+        }
+
+        if (!Request.Cookies.TryGetValue(GoogleOAuthStateCookieName, out var storedState) || storedState != request.State)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Invalid OAuth state. Please try signing in again."
+            });
+        }
+
+        Response.Cookies.Delete(GoogleOAuthStateCookieName, new CookieOptions { Path = "/api/v1/auth" });
+
+        var frontendUrl = _appSettings.FrontendUrl.TrimEnd('/');
+        var redirectUri = $"{frontendUrl}/auth/google/callback";
+
+        var httpClient = _httpClientFactory.CreateClient();
+        var tokenResponse = await httpClient.PostAsync("https://oauth2.googleapis.com/token",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["code"] = request.Code,
+                ["client_id"] = _googleSettings.ClientId,
+                ["client_secret"] = _googleSettings.ClientSecret,
+                ["redirect_uri"] = redirectUri,
+                ["grant_type"] = "authorization_code"
+            }));
+
+        if (!tokenResponse.IsSuccessStatusCode)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Failed to exchange authorization code with Google."
+            });
+        }
+
+        var tokenJson = await tokenResponse.Content.ReadAsStringAsync();
+        var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenJson);
+
+        if (!tokenData.TryGetProperty("id_token", out var idTokenElement))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Type = "https://httpstatuses.com/400",
+                Title = "Bad Request",
+                Status = StatusCodes.Status400BadRequest,
+                Detail = "Google did not return an ID token."
+            });
+        }
+
+        var idToken = idTokenElement.GetString()!;
+        var result = await _authService.GoogleLoginAsync(idToken);
 
         if (!result.IsSuccess)
             return result.ToActionResult();
