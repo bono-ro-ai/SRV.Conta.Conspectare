@@ -1,77 +1,196 @@
-# Integrations & Crons
+# Integrations and Background Services
 
-Last updated: 2026-03-23
+Last updated: 2026-03-28
 
-## I. P&L Expense Tracker Integration
+---
 
-Conspectare notifies the P&L Expense Tracker service when document processing completes via a webhook callback.
+## I. AI/ML Services
 
-### Webhook
+### Anthropic Claude API
 
-- **URL pattern**: `{PNL_API_URL}/api/v1/webhooks/conspectare`
-- **Method**: POST
-- **Authentication**: HMAC-SHA256 signature using the `webhook_secret` stored on the ApiClient record
-- **Trigger**: Document reaches a terminal status (Completed, Failed)
+- **Purpose**: Document triage (classification) and structured data extraction
+- **Model**: `claude-sonnet-4-20250514` (configurable via `Claude:Model`)
+- **Integration**: `ClaudeApiClient` in `Conspectare.Infrastructure.Llm/Claude/`
+- **API**: Claude Messages API (`/v1/messages`) with tool-use for structured output
+- **Features**:
+  - Forced tool calling (`classify_document` for triage, `extract_invoice_data` for extraction)
+  - Base64-encoded PDF and image support
+  - Exponential back-off retry on 429/503 (5s, 15s, 30s)
+  - Max 3 retries by default
+- **Config section**: `Claude`
 
-### API Client
+### Google Gemini API
 
-- **Name**: `P&L Expense Tracker`
-- **API key prefix**: `csp_pnl_`
-- **Rate limit**: 60 req/min
-- **Max file size**: 10 MB
-- **Admin**: No
+- **Purpose**: Alternative/secondary LLM for multi-model consensus extraction
+- **Model**: `gemini-2.5-flash` (configurable via `Gemini:Model`)
+- **Integration**: `GeminiApiClient` in `Conspectare.Infrastructure.Llm/Gemini/`
+- **API**: Gemini Generative Language API (`generateContent`)
+- **Features**: Function calling for structured output, same retry logic as Claude
+- **Config section**: `Gemini`
 
-## II. Deployment Topology
+### Multi-Model Consensus
 
-Conspectare runs as two separate containers sharing the same database and S3 storage:
+- **Feature flag**: `Llm:MultiModel:Enabled`
+- **Strategy**: `HighestConfidenceStrategy` -- selects extraction result with highest confidence score
+- **Implementation**: `MultiModelExtractionService` runs both Claude and Gemini, `LlmClientFactory` provides keyed client resolution
 
-| Container | Project | Port | Purpose |
-|-----------|---------|------|---------|
-| `api` | `Conspectare.Api` | 5100 | HTTP API (controllers, authentication, middleware) |
-| `worker` | `Conspectare.WorkerHost` | 5101 | Background workers (triage, extraction, webhooks, etc.) |
+---
 
-Both containers register shared infrastructure (NHibernate, S3, metrics) via `SharedDependencyInjection` in `Conspectare.Services` and LLM clients via `LlmDependencyInjection` in `Conspectare.Infrastructure.Llm`.
+## II. Document Storage (AWS S3)
 
-### Health Checks
+- **Purpose**: Stores raw uploaded files, processing artifacts, and canonical output JSON
+- **Implementation**: `S3StorageService` in `Conspectare.Services/Infrastructure/`
+- **Key taxonomy** (via `S3KeyBuilder`):
+  - Input files: `tenants/{tenantId}/input/{guid}/{fileName}`
+  - Artifacts: `tenants/{tenantId}/artifacts/{documentId}/{artifactFileName}`
+  - Output: `tenants/{tenantId}/output/{documentId}/{outputFileName}`
+- **Dev**: LocalStack (port 4566, S3 service only)
+- **Prod**: AWS S3 with KMS encryption
+- **Config section**: `Aws`
 
-- **API**: `GET /health` on port 5100
-- **Worker**: `GET /health` on port 5101
+---
 
-### Observability
+## III. External APIs
 
-Both containers expose a Prometheus metrics scraping endpoint at `/metrics` via `MapPrometheusScrapingEndpoint()`.
+### ANAF VAT Validation (Deprecated -- replaced by local CUI validation)
 
-## III. Background Workers
+- **Purpose**: Was used to validate Romanian fiscal codes (CUI) against the ANAF registry
+- **Replacement**: `CuiValidator` provides local algorithmic validation (check digit verification)
+- **Legacy client**: `AnafVatValidationClient` still present but unused in pipeline
+- **Config section**: `Anaf`
 
-Workers run as `IHostedService` inside the **worker container** (`Conspectare.WorkerHost`).
+### P&L Expense Tracker Integration
 
-| Worker | Job Name | Interval | Description |
-|--------|----------|----------|-------------|
-| `TriageWorker` | `triage` | Signal-driven | Classifies incoming documents |
-| `ExtractionWorker` | `extraction` | Signal-driven | Extracts data from documents via LLM |
-| `WebhookWorker` | `webhook_dispatch` | Signal-driven | Dispatches webhook callbacks to API clients |
-| `VatRetryWorker` | `vat_retry` | 5 min | Retries failed VAT validation calls |
-| `StaleClaimRecoveryWorker` | `stale_claim_recovery` | 2 min | Recovers stuck documents |
-| `UsageAggregationWorker` | `usage_aggregation` | 1 hour | Aggregates daily per-tenant usage metrics into `audit_usage_daily`. Cross-tenant, idempotent (UPSERT on tenant_id + usage_date). |
-| `AuditCleanupWorker` | `audit_cleanup` | Periodic | Cleans up old audit records |
-| `MemoryRecyclingWorker` | — | 60s check | Forces GC.Collect when idle and heap exceeds 100 MB (5 min cooldown) |
+- **Purpose**: Upstream consumer of processed documents
+- **Integration**: Webhook-based -- Conspectare sends webhook payloads when documents reach terminal states
+- **Seed data**: `Migration_008_SeedPnlApiClient` creates a pre-configured API client for the P&L system
+- **Config**: `PNL_API_URL`, `PNL_WEBHOOK_SECRET` (dev seed only)
 
-## IV. Cron Jobs
+---
 
-None currently configured.
+## IV. Email Service
 
-## V. Environment Variables
+### Mandrill (Mailchimp Transactional)
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ConnectionStrings__ConspectareDb` | Yes | — | MariaDB connection string |
-| `Aws__ServiceUrl` | No | — | S3-compatible endpoint (LocalStack for dev) |
-| `Aws__AccessKeyId` | Yes | — | AWS access key |
-| `Aws__SecretAccessKey` | Yes | — | AWS secret key |
-| `Aws__Region` | No | `eu-central-1` | AWS region |
-| `Aws__BucketName` | Yes | — | S3 bucket for document storage |
-| `Claude__ApiKey` | No | — | Anthropic API key (required when Llm__Provider=claude) |
-| `Gemini__ApiKey` | No | — | Google Gemini API key (required when Llm__Provider=gemini) |
-| `Llm__Provider` | No | `claude` | Active LLM provider (`claude` or `gemini`) |
-| `Llm__MultiModel__Enabled` | No | `false` | Enable multi-model consensus extraction |
-| `PNL_API_URL` | No | `http://localhost:5200` | Base URL for the P&L Expense Tracker service. Used to construct the webhook callback URL during ApiClient seed migration. |
+- **Purpose**: Sends magic-link authentication emails
+- **Implementation**: `MandrillEmailService` in `Conspectare.Services/Email/`
+- **Features**: Branded HTML templates matching Bono design system
+- **Config section**: `Mandrill`
+
+---
+
+## V. Authentication Providers
+
+### Google OAuth 2.0
+
+- **Purpose**: SSO login for dashboard users
+- **Flow**: Server-side authorization code flow with HMAC-signed state token
+- **Restriction**: Login restricted to `@bono.ro` domain (Google Workspace group check)
+- **Implementation**: `GoogleTokenValidator`, `GoogleGroupChecker` in `Conspectare.Services/Auth/`
+- **Config section**: `Google`
+
+---
+
+## VI. Background Services (Workers)
+
+All workers run in the `Conspectare.WorkerHost` container (port 5101). They extend `DistributedBackgroundService` which provides distributed locking via MariaDB `GET_LOCK()`, adaptive back-off, and audit logging.
+
+| Worker | Interval | Distributed Lock | Description |
+|--------|----------|-------------------|-------------|
+| `TriageWorker` | 3s (signal-driven) | `triage_worker` | Claims batch of 5 pending documents, classifies via LLM |
+| `ExtractionWorker` | 3s (signal-driven) | `extraction_worker` | Claims batch of 5 triaged documents, extracts structured data via LLM |
+| `WebhookWorker` | 5s | `webhook_worker` | Dispatches batch of 10 pending webhook deliveries |
+| `VatRetryWorker` | 5min | `vat_retry_worker` | Retries batch of 10 failed CUI validation flags |
+| `StaleClaimRecoveryWorker` | 2min | `stale_claim_recovery` | Recovers documents stuck in claimed state >5 minutes |
+| `UsageAggregationWorker` | 1h | `usage_aggregation` | Aggregates previous day's usage for all active tenants |
+| `AuditCleanupWorker` | 6h | `audit_cleanup_worker` | Deletes audit rows older than 30 days (batch of 10,000) |
+| `MemoryRecyclingWorker` | 60s | None (per-instance) | Triggers GC when idle and heap exceeds 100 MB (5min cooldown) |
+
+---
+
+## VII. Observability
+
+### Prometheus Metrics
+
+- **Endpoint**: `GET /metrics` on both API and Worker
+- **Meter name**: `Conspectare`
+- **Key metrics**:
+  - `conspectare.documents.ingested` -- Counter by input format
+  - `conspectare.documents.completed` -- Counter
+  - `conspectare.documents.failed` -- Counter by phase and error type
+  - `conspectare.processing.duration` -- Histogram by pipeline phase (ms)
+  - `conspectare.llm.call.duration` -- Histogram by provider and phase (ms)
+  - `conspectare.llm.tokens` -- Counter by provider and direction (input/output)
+  - Memory recycling triggered counter
+
+### Correlation IDs
+
+`CorrelationIdMiddleware` generates or forwards `X-Correlation-Id` header on all API requests.
+
+### Structured Logging
+
+JSON console logger for Railway log aggregation.
+
+---
+
+## VIII. Environment Variables
+
+### Required
+
+| Variable | Description |
+|----------|-------------|
+| `ConnectionStrings__ConspectareDb` | MariaDB connection string |
+| `Aws__AccessKeyId` | AWS access key |
+| `Aws__SecretAccessKey` | AWS secret key |
+| `Aws__Region` | AWS region (e.g., `eu-central-1`) |
+| `Aws__BucketName` | S3 bucket name |
+| `Jwt__Secret` | JWT signing key (min 32 chars) |
+| `Jwt__Issuer` | JWT issuer (default: `conspectare-api`) |
+| `Jwt__Audience` | JWT audience (default: `conspectare-dashboard`) |
+
+### LLM Configuration
+
+| Variable | Description |
+|----------|-------------|
+| `Llm__Provider` | Active LLM provider: `claude` (default) or `gemini` |
+| `Llm__MultiModel__Enabled` | Enable multi-model consensus (default: `false`) |
+| `Claude__ApiKey` | Anthropic API key |
+| `Claude__Model` | Claude model ID (default: `claude-sonnet-4-20250514`) |
+| `Claude__MaxTokens` | Max output tokens (default: `4096`) |
+| `Claude__BaseUrl` | API base URL (default: `https://api.anthropic.com`) |
+| `Claude__TimeoutSeconds` | Request timeout (default: `60`) |
+| `Claude__MaxRetries` | Retry count (default: `3`) |
+| `Gemini__ApiKey` | Google API key |
+| `Gemini__Model` | Gemini model ID (default: `gemini-2.5-flash`) |
+| `Gemini__TriageModel` | Optional triage-specific model override |
+| `Gemini__MaxOutputTokens` | Max output tokens (default: `4096`) |
+| `Gemini__BaseUrl` | API base URL (default: `https://generativelanguage.googleapis.com`) |
+
+### Optional
+
+| Variable | Description |
+|----------|-------------|
+| `Aws__ServiceUrl` | S3-compatible endpoint (e.g., `http://localstack:4566` for dev) |
+| `Google__ClientId` | Google OAuth client ID |
+| `Google__ClientSecret` | Google OAuth client secret |
+| `Mandrill__ApiKey` | Mandrill transactional email API key |
+| `Mandrill__DefaultSender` | Sender email address |
+| `Mandrill__DefaultSenderName` | Sender display name |
+| `App__FrontendUrl` | Frontend URL for OAuth redirects and magic links |
+| `Anaf__BaseUrl` | ANAF VAT API base URL (legacy) |
+| `Anaf__TimeoutSeconds` | ANAF API timeout (default: `10`) |
+| `Anaf__MaxRetries` | ANAF retry count (default: `2`) |
+| `Cors__AllowedOrigins` | Comma-separated CORS origins (empty = allow all) |
+| `PORT` | API listen port (default: `5100`) |
+
+---
+
+## IX. Webhook Delivery
+
+When a document reaches a terminal state (`completed`, `failed`, `rejected`, `review_required`), a webhook delivery is created and dispatched by the `WebhookWorker`.
+
+- **Signing**: Payloads are signed with the tenant's `webhook_secret` via HMAC-SHA256
+- **Retries**: Up to `max_attempts` with exponential back-off
+- **Permanent failure**: After exhausting retries or if the API client is deleted
+- **Payload builder**: `WebhookPayloadBuilder` constructs the JSON payload
+- **Implementation**: `WebhookDispatchService`, `WebhookEnqueuer`, `WebhookNotifier`
