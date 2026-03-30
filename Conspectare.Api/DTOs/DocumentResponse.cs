@@ -13,6 +13,8 @@ public record DocumentResponse(
     long FileSizeBytes,
     string InputFormat,
     string Status,
+    /// <summary>Internal pipeline status exposed for frontend pipeline visualization.</summary>
+    string PipelineStatus,
     string DocumentType,
     decimal? TriageConfidence,
     bool? IsAccountingRelevant,
@@ -67,6 +69,7 @@ public record DocumentResponse(
             document.FileSizeBytes,
             document.InputFormat,
             externalStatus,
+            document.Status,
             document.DocumentType,
             document.TriageConfidence,
             document.IsAccountingRelevant,
