@@ -475,9 +475,9 @@ public class ClaudeApiClient : ILlmApiClient
                             }
                         }
                     },
-                    ["subtotal"] = new JsonObject { ["type"] = "number" },
-                    ["total_vat"] = new JsonObject { ["type"] = "number" },
-                    ["total"] = new JsonObject { ["type"] = "number" },
+                    ["subtotal"] = new JsonObject { ["type"] = "number", ["description"] = "Total FĂRĂ TVA — copy EXACT printed value, do NOT calculate" },
+                    ["total_vat"] = new JsonObject { ["type"] = "number", ["description"] = "Total TVA — copy EXACT printed value, do NOT calculate as percentage of subtotal" },
+                    ["total"] = new JsonObject { ["type"] = "number", ["description"] = "Total CU TVA — copy EXACT printed value, do NOT calculate" },
                     ["payment_method"] = new JsonObject { ["type"] = "string" },
                     ["notes"] = new JsonObject { ["type"] = "string" },
                     ["review_flags"] = new JsonObject

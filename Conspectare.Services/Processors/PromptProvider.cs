@@ -10,8 +10,8 @@ public static class PromptProvider
 {
     private const string ResourcePrefix = "Conspectare.Services.Prompts.";
     private const string TriageVersion = "triage_v1.0.0";
-    private const string ExtractionInvoiceVersion = "extraction_invoice_v1.0.0";
-    private const string ExtractionReceiptVersion = "extraction_receipt_v1.0.0";
+    private const string ExtractionInvoiceVersion = "extraction_invoice_v1.1.0";
+    private const string ExtractionReceiptVersion = "extraction_receipt_v1.1.0";
 
     // Lazy<T> ensures each embedded resource is read from the assembly exactly once.
     private static readonly Lazy<string> TriagePromptCache = new(() => LoadResource($"{TriageVersion}.txt"));

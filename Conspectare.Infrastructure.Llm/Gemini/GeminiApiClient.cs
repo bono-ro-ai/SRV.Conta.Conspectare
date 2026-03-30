@@ -504,9 +504,9 @@ public class GeminiApiClient : ILlmApiClient
                     },
                     ["discount"] = new JsonObject { ["type"] = "number", ["description"] = "Discount global (valoare)" },
                     ["discount_percent"] = new JsonObject { ["type"] = "number", ["description"] = "Discount global %" },
-                    ["tax_exclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Total FĂRĂ TVA (baza impozabilă)" },
-                    ["total_vat"] = new JsonObject { ["type"] = "number", ["description"] = "Total TVA" },
-                    ["tax_inclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Total CU TVA (total de plată)" },
+                    ["tax_exclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Total FĂRĂ TVA (baza impozabilă) — copy EXACT printed value, do NOT calculate" },
+                    ["total_vat"] = new JsonObject { ["type"] = "number", ["description"] = "Total TVA — copy EXACT printed value, do NOT calculate as percentage of subtotal" },
+                    ["tax_inclusive_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Total CU TVA (total de plată) — copy EXACT printed value, do NOT calculate" },
                     ["vat_breakdown"] = new JsonObject
                     {
                         ["type"] = "array",

@@ -65,7 +65,7 @@ public class PromptProviderTests
     {
         var version = PromptProvider.GetExtractionPromptVersion("invoice");
 
-        Assert.Equal("extraction_invoice_v1.0.0", version);
+        Assert.Equal("extraction_invoice_v1.1.0", version);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public class PromptProviderTests
     {
         var version = PromptProvider.GetExtractionPromptVersion("receipt");
 
-        Assert.Equal("extraction_receipt_v1.0.0", version);
+        Assert.Equal("extraction_receipt_v1.1.0", version);
     }
 
     [Fact]

@@ -57,6 +57,15 @@ public class ExtractionOrchestrationService
             ExtractionErrorHandler.Handle(doc, _workflow, _metrics, ex, utcNow, _logger);
             return;
         }
+        // Server-side math validation — adds warning flags for amount mismatches
+        var validationFlags = AmountValidationService.Validate(result.OutputJson);
+        if (validationFlags.Count > 0)
+        {
+            var allFlags = result.ReviewFlags?.ToList() ?? new List<ReviewFlagInfo>();
+            allFlags.AddRange(validationFlags);
+            result = result with { ReviewFlags = allFlags };
+        }
+
         var hasReviewFlags = result.ReviewFlags is { Count: > 0 };
         var hasErrorFlags = result.ReviewFlags?.Any(f => f.Severity == ReviewFlagSeverity.Error) ?? false;
         var nextStatus = hasErrorFlags
@@ -181,6 +190,16 @@ public class ExtractionOrchestrationService
             return;
         }
         var winningResult = consensus.WinningResult;
+
+        // Server-side math validation for multi-model path
+        var multiValidationFlags = AmountValidationService.Validate(winningResult.OutputJson);
+        if (multiValidationFlags.Count > 0)
+        {
+            var allFlags = winningResult.ReviewFlags?.ToList() ?? new List<ReviewFlagInfo>();
+            allFlags.AddRange(multiValidationFlags);
+            winningResult = winningResult with { ReviewFlags = allFlags };
+        }
+
         var hasReviewFlags = winningResult.ReviewFlags is { Count: > 0 };
         var hasErrorFlags = winningResult.ReviewFlags?.Any(f => f.Severity == ReviewFlagSeverity.Error) ?? false;
         var nextStatus = hasErrorFlags
