@@ -56,7 +56,7 @@ Your task is to extract structured accounting data from this fiscal receipt (bon
 - `quantity` — Quantity
 - `unit` — Unit (buc, kg, etc.)
 - `unit_price` — Unit price (FĂRĂ TVA if available, otherwise as printed)
-- `vat_rate` — VAT rate category (A=19%, B=9%, C=5%, D=0% per Romanian fiscal standards)
+- `vat_rate` — VAT rate percentage as printed on receipt (e.g., if receipt shows "COTA TVA A = 21,00 %" extract 21). Do NOT assume standard rates — read the EXACT percentage from the document.
 - `vat_amount` — VAT for this item — copy EXACT printed value
 - `line_total` — Line total — copy EXACT printed value
 

@@ -495,7 +495,7 @@ public class GeminiApiClient : ILlmApiClient
                                 ["discount_percent"] = new JsonObject { ["type"] = "number", ["description"] = "Discount % pe linie" },
                                 ["discount_amount"] = new JsonObject { ["type"] = "number", ["description"] = "Valoare discount pe linie" },
                                 ["line_total_without_vat"] = new JsonObject { ["type"] = "number", ["description"] = "Valoare linie FĂRĂ TVA" },
-                                ["vat_rate"] = new JsonObject { ["type"] = "number", ["description"] = "Cotă TVA: 19, 9, 5, 0" },
+                                ["vat_rate"] = new JsonObject { ["type"] = "number", ["description"] = "Cotă TVA — copy EXACT percentage from document, do NOT assume standard rates" },
                                 ["vat_category"] = new JsonObject { ["type"] = "string", ["description"] = "Categorie TVA: S (standard), AE (scutit cu drept de deducere), E (scutit fără drept), Z (cotă zero), O (neimpozabil)" },
                                 ["vat_amount"] = new JsonObject { ["type"] = "number", ["description"] = "TVA pe linie" },
                                 ["line_total"] = new JsonObject { ["type"] = "number", ["description"] = "Total linie CU TVA" }
